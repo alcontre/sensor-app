@@ -43,8 +43,9 @@ MainFrame::MainFrame()
     CreateSensorTreeView();
     BindEvents();
     
-    // Start automatic data generation (will run indefinitely)
-    StartDataGeneration();
+    // Start automatic data generation after the window is shown/realized
+    // to ensure the data view has initialized its model on GTK
+    CallAfter([this]{ StartDataGeneration(); });
 
     SetStatusText("Welcome to Sensor Tree Viewer! Auto data generation started.");
 }
@@ -258,8 +259,6 @@ void MainFrame::StartDataGeneration()
     m_generationActive = true;
     if (!m_dataTimer.IsRunning())
     {
-        // Generate a first sample immediately
-        QueueRandomDataSample();
         m_dataTimer.Start(1000);
     }
     SetStatusText("Auto data generation started");
