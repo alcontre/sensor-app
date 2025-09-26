@@ -36,17 +36,16 @@ public:
 private:
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
-    void OnGenerateTestData(wxCommandEvent& event);
+    
     void CreateMenuBar();
     void SetupStatusBar();
     void CreateSensorTreeView();
-    void PopulateTestData();
 
     enum
     {
         ID_Hello = 1,
-        ID_GenerateTestData = 2,
-        ID_DataTimer
+        ID_DataTimer,
+        ID_ExpandAll
     };
 
     // UI components
@@ -61,6 +60,7 @@ private:
     void OnClose(wxCloseEvent& event);
     void OnDataTimer(wxTimerEvent& event);
     void OnSensorData(wxCommandEvent& event);
+    void OnExpandAll(wxCommandEvent& event);
     void StartDataGeneration();
     void StopDataGeneration();
     void QueueRandomDataSample();
