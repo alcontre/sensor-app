@@ -1,0 +1,121 @@
+#include "Node.h"
+#include <algorithm>
+#include <sstream>
+
+Node::Node(const std::string& name, Node* parent)
+    : m_name(name)
+    , m_parent(parent)
+    , m_hasValue(false)
+    , m_value(0.0) // Default constructor for DataValue
+{
+}
+
+void Node::AddChild(std::shared_ptr<Node> child)
+{
+    if (child)
+    {
+        child->SetParent(this);
+        m_children.push_back(child);
+    }
+}
+
+std::shared_ptr<Node> Node::FindChild(const std::string& name) const
+{
+    auto it = std::find_if(m_children.begin(), m_children.end(),
+        [&name](const std::shared_ptr<Node>& child) {
+            return child->GetName() == name;
+        });
+    
+    return (it != m_children.end()) ? *it : nullptr;
+}
+
+void Node::SetValue(const DataValue& value)
+{
+    m_value = value;
+    m_hasValue = true;
+}
+
+void Node::ClearValue()
+{
+    m_hasValue = false;
+}
+
+std::vector<std::string> Node::GetPath() const
+{
+    std::vector<std::string> path;
+    const Node* current = this;
+    
+    while (current != nullptr)
+    {
+        path.insert(path.begin(), current->GetName());
+        current = current->GetParent();
+    }
+    
+    return path;
+}
+
+std::string Node::GetFullPath(const std::string& separator) const
+{
+    auto path = GetPath();
+    if (path.empty())
+        return "";
+    
+    std::ostringstream oss;
+    for (size_t i = 0; i < path.size(); ++i)
+    {
+        if (i > 0)
+            oss << separator;
+        oss << path[i];
+    }
+    return oss.str();
+}
+
+size_t Node::GetDepth() const
+{
+    size_t depth = 0;
+    const Node* current = m_parent;
+    while (current != nullptr)
+    {
+        ++depth;
+        current = current->GetParent();
+    }
+    return depth;
+}
+
+std::vector<Node*> Node::GetAllDescendants() const
+{
+    std::vector<Node*> descendants;
+    GetAllDescendantsRecursive(descendants);
+    return descendants;
+}
+
+std::vector<Node*> Node::GetLeafNodes() const
+{
+    std::vector<Node*> leaves;
+    GetLeafNodesRecursive(leaves);
+    return leaves;
+}
+
+void Node::GetAllDescendantsRecursive(std::vector<Node*>& nodes) const
+{
+    for (const auto& child : m_children)
+    {
+        nodes.push_back(child.get());
+        child->GetAllDescendantsRecursive(nodes);
+    }
+}
+
+void Node::GetLeafNodesRecursive(std::vector<Node*>& leaves) const
+{
+    if (IsLeaf())
+    {
+        leaves.push_back(const_cast<Node*>(this));
+    }
+    else
+    {
+        for (const auto& child : m_children)
+        {
+            child->GetLeafNodesRecursive(leaves);
+        }
+    }
+}
