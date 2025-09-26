@@ -36,6 +36,7 @@ MainFrame::MainFrame()
     , m_treeCtrl(nullptr)
     , m_dataTimer(this, ID_DataTimer)
     , m_generationActive(false)
+    , m_samplesReceived(0)
 {
     CreateMenuBar();
     SetupStatusBar();
@@ -216,7 +217,8 @@ void MainFrame::OnSensorData(wxCommandEvent& event)
         return;
 
     m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue());
-    SetStatusText("Sensor sample update received");
+    ++m_samplesReceived;
+    SetStatusText(wxString::Format("Samples received: %zu", (unsigned long long)m_samplesReceived));
 }
 
 void MainFrame::StartDataGeneration()

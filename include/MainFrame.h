@@ -45,8 +45,8 @@ private:
     enum
     {
         ID_Hello = 1,
-    ID_GenerateTestData = 2,
-    ID_DataTimer
+        ID_GenerateTestData = 2,
+        ID_DataTimer
     };
 
     // UI components
@@ -54,6 +54,7 @@ private:
     std::shared_ptr<SensorTreeModel> m_treeModel;
     wxTimer m_dataTimer;
     bool m_generationActive;
+    uint64_t m_samplesReceived;
 
     // Event binding setup
     void BindEvents();
