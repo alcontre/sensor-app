@@ -30,4 +30,5 @@ private:
 
     // Event binding setup
     void BindEvents();
+    void OnClose(wxCloseEvent& event);
 };

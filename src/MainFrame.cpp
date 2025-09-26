@@ -158,4 +158,19 @@ void MainFrame::BindEvents()
     Bind(wxEVT_MENU, &MainFrame::OnAbout, this, ID_Hello);
     Bind(wxEVT_MENU, &MainFrame::OnExit, this, wxID_EXIT);
     Bind(wxEVT_MENU, &MainFrame::OnGenerateTestData, this, ID_GenerateTestData);
+    // Bind close event to ensure model is disassociated before destruction
+    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
+}
+
+void MainFrame::OnClose(wxCloseEvent& event)
+{
+    // Ensure the data view control disassociates the model before it is destroyed.
+    if (m_treeCtrl && m_treeModel)
+    {
+        // Disassociate model to prevent wxDataViewCtrl from trying to remove notifier
+        m_treeCtrl->AssociateModel(nullptr);
+    }
+
+    // Proceed with default close handling
+    event.Skip();
 }
