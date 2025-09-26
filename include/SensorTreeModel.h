@@ -41,7 +41,6 @@ public:
     {
         COL_NAME = 0,
         COL_VALUE,
-        COL_TYPE,
         COL_COUNT
     };
 

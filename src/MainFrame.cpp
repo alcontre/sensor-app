@@ -111,7 +111,6 @@ void MainFrame::CreateSensorTreeView()
     // Add columns
     m_treeCtrl->AppendTextColumn("Name", SensorTreeModel::COL_NAME, wxDATAVIEW_CELL_INERT, 200);
     m_treeCtrl->AppendTextColumn("Value", SensorTreeModel::COL_VALUE, wxDATAVIEW_CELL_INERT, 120);
-    m_treeCtrl->AppendTextColumn("Type", SensorTreeModel::COL_TYPE, wxDATAVIEW_CELL_INERT, 100);
     
     // Layout
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);

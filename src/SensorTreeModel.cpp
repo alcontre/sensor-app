@@ -124,16 +124,6 @@ void SensorTreeModel::GetValue(wxVariant& variant, const wxDataViewItem& item, u
                 variant = wxString("");
             }
             break;
-        case COL_TYPE:
-            if (node->HasValue())
-            {
-                variant = wxString(node->GetValue().IsNumeric() ? "Number" : "String");
-            }
-            else
-            {
-                variant = wxString("Container");
-            }
-            break;
         default:
             variant = wxString("");
     }
