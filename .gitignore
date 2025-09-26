@@ -2,7 +2,5 @@
 build/
 
 # Backup files
-*~
-*.bak
-*.swp
-*.tmp
+**/*.swo
+**/*.swp

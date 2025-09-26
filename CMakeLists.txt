@@ -5,14 +5,24 @@ project(SensorTreeApp VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Export compile commands for tooling (compile_commands.json)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Find wxWidgets
-find_package(wxWidgets REQUIRED COMPONENTS core base)
+find_package(wxWidgets REQUIRED COMPONENTS core base net)
 include(${wxWidgets_USE_FILE})
 
 # Add executable
 add_executable(${PROJECT_NAME}
     src/MainFrame.cpp
     src/App.cpp
+    src/SensorDataJsonWriter.cpp
+    src/SensorData.cpp
+    src/SensorDataEvent.cpp
+    src/SensorDataGenerator.cpp
+    src/SensorDataTestGenerator.cpp
+    src/Node.cpp
+    src/SensorTreeModel.cpp
 )
 
 # Include directories

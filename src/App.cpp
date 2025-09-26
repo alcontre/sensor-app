@@ -1,15 +1,27 @@
-#include "App.h"
+#include "App.hpp"
+
 #include "MainFrame.h"
+
+#include <wx/socket.h>
+#include <wx/wx.h>
+
+class App : public wxApp
+{
+ public:
+   virtual bool OnInit() override;
+};
 
 wxIMPLEMENT_APP(App);
 
 bool App::OnInit()
 {
-    if (!wxApp::OnInit())
-        return false;
+   wxSocketBase::Initialize();
 
-    MainFrame* frame = new MainFrame();
-    frame->Show(true);
+   if (!wxApp::OnInit())
+      return false;
 
-    return true;
+   MainFrame *frame = new MainFrame();
+   frame->Show(true);
+
+   return true;
 }

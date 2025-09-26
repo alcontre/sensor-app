@@ -14,5 +14,3 @@ else
     # macOS doesn't have nproc, use sysctl instead
     make -j$(sysctl -n hw.ncpu)
 fi
-
-echo "Build complete. Run ./bin/SensorTreeApp to start the application."
