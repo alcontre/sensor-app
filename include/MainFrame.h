@@ -45,7 +45,13 @@ private:
     {
         ID_Hello = 1,
         ID_DataTimer,
-        ID_ExpandAll
+
+        // Menu bar
+        ID_ExpandAll,
+
+        // Context menu entries
+        ID_ExpandAllHere,
+        ID_CollapseChildrenHere
     };
 
     // UI components
@@ -54,6 +60,8 @@ private:
     wxTimer m_dataTimer;
     bool m_generationActive;
     uint64_t m_samplesReceived;
+    // Track the item for which a context menu is opened
+    wxDataViewItem m_contextItem;
 
     // Event binding setup
     void BindEvents();
@@ -61,6 +69,10 @@ private:
     void OnDataTimer(wxTimerEvent& event);
     void OnSensorData(wxCommandEvent& event);
     void OnExpandAll(wxCommandEvent& event);
+    void OnItemActivated(wxDataViewEvent& event);
+    void OnItemContextMenu(wxDataViewEvent& event);
+    void OnExpandAllHere(wxCommandEvent& event);
+    void OnCollapseChildrenHere(wxCommandEvent& event);
     void StartDataGeneration();
     void StopDataGeneration();
     void QueueRandomDataSample();

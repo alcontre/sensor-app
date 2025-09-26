@@ -130,6 +130,12 @@ void MainFrame::BindEvents()
     Bind(wxEVT_TIMER, &MainFrame::OnDataTimer, this, ID_DataTimer);
     Bind(wxEVT_SENSOR_DATA_SAMPLE, &MainFrame::OnSensorData, this);
     Bind(wxEVT_MENU, &MainFrame::OnExpandAll, this, ID_ExpandAll);
+    // Toggle expand/collapse on double-click (item activated)
+    Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &MainFrame::OnItemActivated, this);
+    // Context menu for items
+    Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
+    Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
+    Bind(wxEVT_MENU, &MainFrame::OnCollapseChildrenHere, this, ID_CollapseChildrenHere);
 }
 
 void MainFrame::OnDataTimer(wxTimerEvent& event)
@@ -173,6 +179,75 @@ void MainFrame::OnExpandAll(wxCommandEvent& event)
     // Start from the invisible root
     wxDataViewItem root = wxDataViewItem(NULL);
     ExpandAllRecursive(m_treeCtrl, root, m_treeModel.get());
+}
+
+void MainFrame::OnItemActivated(wxDataViewEvent& event)
+{
+    if (!m_treeCtrl)
+        return;
+
+    wxDataViewItem item = event.GetItem();
+    if (!item.IsOk())
+        return;
+
+    if (m_treeCtrl->IsExpanded(item))
+        m_treeCtrl->Collapse(item);
+    else
+        m_treeCtrl->Expand(item);
+}
+
+// Recursively expand all descendants of a given item
+static void ExpandDescendants(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
+{
+    wxDataViewItemArray children;
+    model->GetChildren(parent, children);
+    for (const wxDataViewItem& child : children)
+    {
+        ctrl->Expand(child);
+        ExpandDescendants(ctrl, child, model);
+    }
+}
+
+// Recursively collapse all descendants of a given item
+static void CollapseDescendants(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
+{
+    wxDataViewItemArray children;
+    model->GetChildren(parent, children);
+    for (const wxDataViewItem& child : children)
+    {
+        CollapseDescendants(ctrl, child, model);
+        ctrl->Collapse(child);
+    }
+}
+
+void MainFrame::OnItemContextMenu(wxDataViewEvent& event)
+{
+    m_contextItem = event.GetItem();
+    wxMenu menu;
+    menu.Append(ID_ExpandAllHere, "Expand All");
+    menu.Append(ID_CollapseChildrenHere, "Collapse Children");
+    PopupMenu(&menu);
+}
+
+void MainFrame::OnExpandAllHere(wxCommandEvent& event)
+{
+    if (!m_treeCtrl || !m_treeModel)
+        return;
+
+    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
+    ExpandDescendants(m_treeCtrl, start, m_treeModel.get());
+}
+
+void MainFrame::OnCollapseChildrenHere(wxCommandEvent& event)
+{
+    if (!m_treeCtrl || !m_treeModel)
+        return;
+
+    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
+    CollapseDescendants(m_treeCtrl, start, m_treeModel.get());
+    // Also collapse the starting item itself if it's a valid node
+    if (m_contextItem.IsOk())
+        m_treeCtrl->Collapse(m_contextItem);
 }
 
 void MainFrame::StartDataGeneration()
