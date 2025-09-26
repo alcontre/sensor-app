@@ -45,10 +45,8 @@ private:
     enum
     {
         ID_Hello = 1,
-        ID_GenerateTestData = 2,
-        ID_StartGenerator,
-        ID_StopGenerator,
-        ID_DataTimer
+    ID_GenerateTestData = 2,
+    ID_DataTimer
     };
 
     // UI components
@@ -62,8 +60,6 @@ private:
     void OnClose(wxCloseEvent& event);
     void OnDataTimer(wxTimerEvent& event);
     void OnSensorData(wxCommandEvent& event);
-    void OnStartGenerator(wxCommandEvent& event);
-    void OnStopGenerator(wxCommandEvent& event);
     void StartDataGeneration();
     void StopDataGeneration();
     void QueueRandomDataSample();

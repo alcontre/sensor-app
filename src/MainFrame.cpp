@@ -43,9 +43,12 @@ MainFrame::MainFrame()
     BindEvents();
     
     // Populate initial test data
-    // PopulateTestData();
-    
-    SetStatusText("Welcome to Sensor Tree Viewer! Sample data loaded.");
+    PopulateTestData();
+
+    // Start automatic data generation (will run indefinitely)
+    StartDataGeneration();
+
+    SetStatusText("Welcome to Sensor Tree Viewer! Auto data generation started.");
 }
 
 void MainFrame::CreateMenuBar()
@@ -59,10 +62,7 @@ void MainFrame::CreateMenuBar()
     wxMenu* menuData = new wxMenu;
     menuData->Append(ID_GenerateTestData, "&Generate Test Data\tCtrl-G",
                      "Generate sample hierarchical sensor data");
-    menuData->Append(ID_StartGenerator, "Start &Auto Data\tCtrl-Shift-G",
-                     "Begin queuing random sensor data samples");
-    menuData->Append(ID_StopGenerator, "S&top Auto Data\tCtrl-Shift-S",
-                     "Stop queuing random sensor data samples");
+    // Auto generation will start automatically; no Start/Stop menu entries
 
     wxMenuBar* menuBar = new wxMenuBar;
     menuBar->Append(menuFile, "&File");
@@ -96,15 +96,7 @@ void MainFrame::OnGenerateTestData(wxCommandEvent& event)
     SetStatusText("Test data generated!");
 }
 
-void MainFrame::OnStartGenerator(wxCommandEvent& event)
-{
-    StartDataGeneration();
-}
-
-void MainFrame::OnStopGenerator(wxCommandEvent& event)
-{
-    StopDataGeneration();
-}
+// Start/stop handlers removed; generation starts automatically
 
 void MainFrame::CreateSensorTreeView()
 {
@@ -203,8 +195,6 @@ void MainFrame::BindEvents()
     Bind(wxEVT_MENU, &MainFrame::OnAbout, this, ID_Hello);
     Bind(wxEVT_MENU, &MainFrame::OnExit, this, wxID_EXIT);
     Bind(wxEVT_MENU, &MainFrame::OnGenerateTestData, this, ID_GenerateTestData);
-    Bind(wxEVT_MENU, &MainFrame::OnStartGenerator, this, ID_StartGenerator);
-    Bind(wxEVT_MENU, &MainFrame::OnStopGenerator, this, ID_StopGenerator);
     // Bind close event to ensure model is disassociated before destruction
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
     Bind(wxEVT_TIMER, &MainFrame::OnDataTimer, this, ID_DataTimer);
