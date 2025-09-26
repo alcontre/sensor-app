@@ -5,6 +5,9 @@ project(SensorTreeApp VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Export compile commands for tooling (compile_commands.json)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Find wxWidgets
 find_package(wxWidgets REQUIRED COMPONENTS core base)
 include(${wxWidgets_USE_FILE})
