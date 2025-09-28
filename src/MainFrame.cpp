@@ -43,9 +43,8 @@ MainFrame::MainFrame()
     CreateSensorTreeView();
     BindEvents();
     
-    // Start automatic data generation after the window is shown/realized
-    // to ensure the data view has initialized its model on GTK
-    CallAfter([this]{ StartDataGeneration(); });
+    // Start automatic data generation (will run indefinitely)
+    StartDataGeneration();
 
     SetStatusText("Welcome to Sensor Tree Viewer! Auto data generation started.");
 }
