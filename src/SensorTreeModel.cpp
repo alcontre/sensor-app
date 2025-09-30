@@ -57,6 +57,7 @@ std::shared_ptr<Node> SensorTreeModel::FindOrCreatePath(const std::vector<std::s
     
     // Find or create root node
     std::shared_ptr<Node> current = nullptr;
+    std::shared_ptr<Node> newlyCreatedRoot = nullptr;
     auto it = std::find_if(m_rootNodes.begin(), m_rootNodes.end(),
         [&path](const std::shared_ptr<Node>& node) {
             return node->GetName() == path[0];
@@ -71,22 +72,45 @@ std::shared_ptr<Node> SensorTreeModel::FindOrCreatePath(const std::vector<std::s
         // Create new root node
         current = std::make_shared<Node>(path[0]);
         m_rootNodes.push_back(current);
-        // Notify about the new root node
-        ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(current.get()));
+        newlyCreatedRoot = current;
     }
     
     // Traverse/create the rest of the path
+    struct PendingEdge
+    {
+        Node* parent;
+        Node* child;
+        bool parentWasLeaf;
+    };
+    std::vector<PendingEdge> pendingEdges;
+
     for (size_t i = 1; i < path.size(); ++i)
     {
         auto child = current->FindChild(path[i]);
         if (!child)
         {
+            const bool parentWasLeaf = current->IsLeaf();
             child = std::make_shared<Node>(path[i]);
             current->AddChild(child);
-            // Notify that a new item was added
-            ItemAdded(CreateItemFromNode(current.get()), CreateItemFromNode(child.get()));
+            pendingEdges.push_back({ current.get(), child.get(), parentWasLeaf });
         }
         current = child;
+    }
+
+    if (newlyCreatedRoot)
+    {
+        ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(newlyCreatedRoot.get()));
+    }
+
+    for (const auto& edge : pendingEdges)
+    {
+        wxDataViewItem parentItem = edge.parent ? CreateItemFromNode(edge.parent) : wxDataViewItem(nullptr);
+        wxDataViewItem childItem = CreateItemFromNode(edge.child);
+        ItemAdded(parentItem, childItem);
+        if (edge.parentWasLeaf)
+        {
+            ItemChanged(parentItem);
+        }
     }
     
     return current;
@@ -146,6 +170,9 @@ wxDataViewItem SensorTreeModel::GetParent(const wxDataViewItem& item) const
 
 bool SensorTreeModel::IsContainer(const wxDataViewItem& item) const
 {
+    if (!item.IsOk())
+        return true;
+
     Node* node = GetNodeFromItem(item);
     return node && !node->IsLeaf();
 }
