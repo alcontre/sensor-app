@@ -10,23 +10,25 @@ Node::Node(const std::string& name, Node* parent)
 {
 }
 
-void Node::AddChild(std::shared_ptr<Node> child)
+Node* Node::AddChild(std::unique_ptr<Node> child)
 {
-    if (child)
-    {
-        child->SetParent(this);
-        m_children.push_back(child);
-    }
+    if (!child)
+        return nullptr;
+
+    child->SetParent(this);
+    Node* rawChild = child.get();
+    m_children.push_back(std::move(child));
+    return rawChild;
 }
 
-std::shared_ptr<Node> Node::FindChild(const std::string& name) const
+Node* Node::FindChild(const std::string& name) const
 {
     auto it = std::find_if(m_children.begin(), m_children.end(),
-        [&name](const std::shared_ptr<Node>& child) {
+        [&name](const std::unique_ptr<Node>& child) {
             return child->GetName() == name;
         });
-    
-    return (it != m_children.end()) ? *it : nullptr;
+
+    return (it != m_children.end()) ? it->get() : nullptr;
 }
 
 void Node::SetValue(const DataValue& value)

@@ -9,19 +9,21 @@ SensorTreeModel::~SensorTreeModel()
 {
 }
 
-void SensorTreeModel::SetRootNodes(const std::vector<std::shared_ptr<Node>>& nodes)
+void SensorTreeModel::SetRootNodes(std::vector<std::unique_ptr<Node>> nodes)
 {
-    m_rootNodes = nodes;
+    m_rootNodes = std::move(nodes);
     Cleared();
 }
 
-void SensorTreeModel::AddRootNode(std::shared_ptr<Node> node)
+Node* SensorTreeModel::AddRootNode(std::unique_ptr<Node> node)
 {
-    if (node)
-    {
-        m_rootNodes.push_back(node);
-        ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(node.get()));
-    }
+    if (!node)
+        return nullptr;
+
+    Node* rawNode = node.get();
+    m_rootNodes.push_back(std::move(node));
+    ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(rawNode));
+    return rawNode;
 }
 
 void SensorTreeModel::ClearAll()
@@ -32,47 +34,45 @@ void SensorTreeModel::ClearAll()
 
 void SensorTreeModel::AddDataSample(const std::vector<std::string>& path, const DataValue& value)
 {
-    auto node = FindOrCreatePath(path);
+    Node* node = FindOrCreatePath(path);
     if (node)
     {
         node->SetValue(value);
         // Notify that the item changed
-        wxDataViewItem item = CreateItemFromNode(node.get());
+        wxDataViewItem item = CreateItemFromNode(node);
         ItemChanged(item);
     }
 }
 
-void SensorTreeModel::AddDataSample(std::shared_ptr<SensorData> data)
+void SensorTreeModel::AddDataSample(const SensorData& data)
 {
-    if (data)
-    {
-        AddDataSample(data->GetPath(), data->GetValue());
-    }
+    AddDataSample(data.GetPath(), data.GetValue());
 }
 
-std::shared_ptr<Node> SensorTreeModel::FindOrCreatePath(const std::vector<std::string>& path)
+Node* SensorTreeModel::FindOrCreatePath(const std::vector<std::string>& path)
 {
     if (path.empty())
         return nullptr;
     
     // Find or create root node
-    std::shared_ptr<Node> current = nullptr;
-    std::shared_ptr<Node> newlyCreatedRoot = nullptr;
+    Node* current = nullptr;
+    Node* newlyCreatedRoot = nullptr;
     auto it = std::find_if(m_rootNodes.begin(), m_rootNodes.end(),
-        [&path](const std::shared_ptr<Node>& node) {
+        [&path](const std::unique_ptr<Node>& node) {
             return node->GetName() == path[0];
         });
     
     if (it != m_rootNodes.end())
     {
-        current = *it;
+        current = it->get();
     }
     else
     {
         // Create new root node
-        current = std::make_shared<Node>(path[0]);
-        m_rootNodes.push_back(current);
+        auto newRoot = std::make_unique<Node>(path[0]);
+        current = newRoot.get();
         newlyCreatedRoot = current;
+        m_rootNodes.push_back(std::move(newRoot));
     }
     
     // Traverse/create the rest of the path
@@ -86,20 +86,20 @@ std::shared_ptr<Node> SensorTreeModel::FindOrCreatePath(const std::vector<std::s
 
     for (size_t i = 1; i < path.size(); ++i)
     {
-        auto child = current->FindChild(path[i]);
+        Node* child = current->FindChild(path[i]);
         if (!child)
         {
             const bool parentWasLeaf = current->IsLeaf();
-            child = std::make_shared<Node>(path[i]);
-            current->AddChild(child);
-            pendingEdges.push_back({ current.get(), child.get(), parentWasLeaf });
+            auto newChild = std::make_unique<Node>(path[i]);
+            child = current->AddChild(std::move(newChild));
+            pendingEdges.push_back({ current, child, parentWasLeaf });
         }
         current = child;
     }
 
     if (newlyCreatedRoot)
     {
-        ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(newlyCreatedRoot.get()));
+        ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(newlyCreatedRoot));
     }
 
     for (const auto& edge : pendingEdges)

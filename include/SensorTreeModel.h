@@ -12,13 +12,13 @@ public:
     virtual ~SensorTreeModel();
     
     // Data management
-    void SetRootNodes(const std::vector<std::shared_ptr<Node>>& nodes);
-    void AddRootNode(std::shared_ptr<Node> node);
+    void SetRootNodes(std::vector<std::unique_ptr<Node>> nodes);
+    Node* AddRootNode(std::unique_ptr<Node> node);
     void ClearAll();
     
     // Add data samples and build tree structure
     void AddDataSample(const std::vector<std::string>& path, const DataValue& value);
-    void AddDataSample(std::shared_ptr<SensorData> data);
+    void AddDataSample(const SensorData& data);
     
     // wxDataViewModel interface
     virtual unsigned int GetColumnCount() const override;
@@ -34,7 +34,7 @@ public:
     
     // Helper methods
     void RefreshData();
-    std::shared_ptr<Node> FindOrCreatePath(const std::vector<std::string>& path);
+    Node* FindOrCreatePath(const std::vector<std::string>& path);
     
     // Column definitions
     enum Column
@@ -45,7 +45,7 @@ public:
     };
 
 private:
-    std::vector<std::shared_ptr<Node>> m_rootNodes;
+    std::vector<std::unique_ptr<Node>> m_rootNodes;
     
     // Helper methods for item management
     Node* GetNodeFromItem(const wxDataViewItem& item) const;

@@ -23,9 +23,9 @@ public:
     Node* GetParent() const { return m_parent; }
     void SetParent(Node* parent) { m_parent = parent; }
     
-    const std::vector<std::shared_ptr<Node>>& GetChildren() const { return m_children; }
-    void AddChild(std::shared_ptr<Node> child);
-    std::shared_ptr<Node> FindChild(const std::string& name) const;
+    const std::vector<std::unique_ptr<Node>>& GetChildren() const { return m_children; }
+    Node* AddChild(std::unique_ptr<Node> child);
+    Node* FindChild(const std::string& name) const;
     
     // Data value (leaf nodes can have values)
     bool HasValue() const { return m_hasValue; }
@@ -47,7 +47,7 @@ public:
 private:
     std::string m_name;
     Node* m_parent;
-    std::vector<std::shared_ptr<Node>> m_children;
+    std::vector<std::unique_ptr<Node>> m_children;
     
     bool m_hasValue;
     DataValue m_value;
