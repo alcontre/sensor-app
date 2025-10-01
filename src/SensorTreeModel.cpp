@@ -12,6 +12,10 @@ SensorTreeModel::~SensorTreeModel()
 void SensorTreeModel::SetRootNodes(std::vector<std::unique_ptr<Node>> nodes)
 {
     m_rootNodes = std::move(nodes);
+    std::sort(m_rootNodes.begin(), m_rootNodes.end(),
+        [](const std::unique_ptr<Node>& a, const std::unique_ptr<Node>& b) {
+            return a->GetName() < b->GetName();
+        });
     Cleared();
 }
 
@@ -21,7 +25,12 @@ Node* SensorTreeModel::AddRootNode(std::unique_ptr<Node> node)
         return nullptr;
 
     Node* rawNode = node.get();
-    m_rootNodes.push_back(std::move(node));
+    // Insert in sorted order
+    auto it = std::lower_bound(m_rootNodes.begin(), m_rootNodes.end(), node,
+        [](const std::unique_ptr<Node>& a, const std::unique_ptr<Node>& b) {
+            return a->GetName() < b->GetName();
+        });
+    m_rootNodes.insert(it, std::move(node));
     ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(rawNode));
     return rawNode;
 }
@@ -72,7 +81,12 @@ Node* SensorTreeModel::FindOrCreatePath(const std::vector<std::string>& path)
         auto newRoot = std::make_unique<Node>(path[0]);
         current = newRoot.get();
         newlyCreatedRoot = current;
-        m_rootNodes.push_back(std::move(newRoot));
+        // Insert in sorted order
+        auto insertIt = std::lower_bound(m_rootNodes.begin(), m_rootNodes.end(), newRoot,
+            [](const std::unique_ptr<Node>& a, const std::unique_ptr<Node>& b) {
+                return a->GetName() < b->GetName();
+            });
+        m_rootNodes.insert(insertIt, std::move(newRoot));
     }
     
     // Traverse/create the rest of the path
