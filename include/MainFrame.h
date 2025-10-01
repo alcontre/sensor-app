@@ -45,6 +45,7 @@ private:
     {
         ID_Hello = 1,
         ID_DataTimer,
+        ID_AgeTimer,
 
         // Menu bar
         ID_ExpandAll,
@@ -58,6 +59,7 @@ private:
     wxDataViewCtrl* m_treeCtrl;
     std::shared_ptr<SensorTreeModel> m_treeModel;
     wxTimer m_dataTimer;
+    wxTimer m_ageTimer;
     bool m_generationActive;
     uint64_t m_samplesReceived;
     // Track the item for which a context menu is opened
@@ -67,6 +69,7 @@ private:
     void BindEvents();
     void OnClose(wxCloseEvent& event);
     void OnDataTimer(wxTimerEvent& event);
+    void OnAgeTimer(wxTimerEvent& event);
     void OnSensorData(wxCommandEvent& event);
     void OnExpandAll(wxCommandEvent& event);
     void OnItemActivated(wxDataViewEvent& event);

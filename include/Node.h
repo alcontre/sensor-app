@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <map>
+#include <chrono>
 
 // Forward declaration
 class Node;
@@ -32,6 +33,7 @@ public:
     const DataValue& GetValue() const { return m_value; }
     void SetValue(const DataValue& value);
     void ClearValue();
+    double GetSecondsSinceUpdate() const;
     
     // Tree utilities
     std::vector<std::string> GetPath() const;
@@ -51,6 +53,7 @@ private:
     
     bool m_hasValue;
     DataValue m_value;
+    std::chrono::steady_clock::time_point m_lastUpdate;
     
     void GetAllDescendantsRecursive(std::vector<Node*>& nodes) const;
     void GetLeafNodesRecursive(std::vector<Node*>& leaves) const;

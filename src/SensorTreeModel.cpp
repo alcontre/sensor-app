@@ -1,5 +1,6 @@
 #include "SensorTreeModel.h"
 #include <algorithm>
+#include <functional>
 
 SensorTreeModel::SensorTreeModel()
 {
@@ -162,6 +163,17 @@ void SensorTreeModel::GetValue(wxVariant& variant, const wxDataViewItem& item, u
                 variant = wxString("");
             }
             break;
+        case COL_ELAPSED:
+            if (node->HasValue())
+            {
+                double seconds = node->GetSecondsSinceUpdate();
+                variant = wxString::Format("%.1f", seconds);
+            }
+            else
+            {
+                variant = wxString("");
+            }
+            break;
         default:
             variant = wxString("");
     }
@@ -224,6 +236,26 @@ unsigned int SensorTreeModel::GetChildren(const wxDataViewItem& parent, wxDataVi
 void SensorTreeModel::RefreshData()
 {
     Cleared();
+}
+
+void SensorTreeModel::RefreshElapsedTimes()
+{
+    std::function<void(Node*)> refresh = [&](Node* node)
+    {
+        if (!node)
+            return;
+
+        ItemChanged(CreateItemFromNode(node));
+        for (const auto& child : node->GetChildren())
+        {
+            refresh(child.get());
+        }
+    };
+
+    for (const auto& root : m_rootNodes)
+    {
+        refresh(root.get());
+    }
 }
 
 // Helper methods

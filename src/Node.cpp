@@ -1,12 +1,14 @@
 #include "Node.h"
 #include <algorithm>
 #include <sstream>
+#include <chrono>
 
 Node::Node(const std::string& name, Node* parent)
     : m_name(name)
     , m_parent(parent)
     , m_hasValue(false)
     , m_value(0.0) // Default constructor for DataValue
+    , m_lastUpdate(std::chrono::steady_clock::time_point{})
 {
 }
 
@@ -40,11 +42,13 @@ void Node::SetValue(const DataValue& value)
 {
     m_value = value;
     m_hasValue = true;
+    m_lastUpdate = std::chrono::steady_clock::now();
 }
 
 void Node::ClearValue()
 {
     m_hasValue = false;
+    m_lastUpdate = std::chrono::steady_clock::time_point{};
 }
 
 std::vector<std::string> Node::GetPath() const
@@ -125,4 +129,14 @@ void Node::GetLeafNodesRecursive(std::vector<Node*>& leaves) const
             child->GetLeafNodesRecursive(leaves);
         }
     }
+}
+
+double Node::GetSecondsSinceUpdate() const
+{
+    if (!m_hasValue)
+        return 0.0;
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(now - m_lastUpdate);
+    return elapsed.count();
 }

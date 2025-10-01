@@ -35,12 +35,14 @@ public:
     // Helper methods
     void RefreshData();
     Node* FindOrCreatePath(const std::vector<std::string>& path);
+    void RefreshElapsedTimes();
     
     // Column definitions
     enum Column
     {
         COL_NAME = 0,
         COL_VALUE,
+        COL_ELAPSED,
         COL_COUNT
     };
 

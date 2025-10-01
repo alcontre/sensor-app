@@ -35,6 +35,7 @@ MainFrame::MainFrame()
               wxDefaultPosition, wxSize(800, 600))
     , m_treeCtrl(nullptr)
     , m_dataTimer(this, ID_DataTimer)
+    , m_ageTimer(this, ID_AgeTimer)
     , m_generationActive(false)
     , m_samplesReceived(0)
 {
@@ -45,6 +46,7 @@ MainFrame::MainFrame()
     
     // Start automatic data generation (will run indefinitely)
     StartDataGeneration();
+    m_ageTimer.Start(250);
 
     SetStatusText("Welcome to Sensor Tree Viewer! Auto data generation started.");
 }
@@ -111,6 +113,7 @@ void MainFrame::CreateSensorTreeView()
     // Add columns
     m_treeCtrl->AppendTextColumn("Name", SensorTreeModel::COL_NAME, wxDATAVIEW_CELL_INERT, 200);
     m_treeCtrl->AppendTextColumn("Value", SensorTreeModel::COL_VALUE, wxDATAVIEW_CELL_INERT, 120);
+    m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100);
     
     // Layout
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
@@ -128,6 +131,7 @@ void MainFrame::BindEvents()
     // Bind close event to ensure model is disassociated before destruction
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
     Bind(wxEVT_TIMER, &MainFrame::OnDataTimer, this, ID_DataTimer);
+    Bind(wxEVT_TIMER, &MainFrame::OnAgeTimer, this, ID_AgeTimer);
     Bind(wxEVT_SENSOR_DATA_SAMPLE, &MainFrame::OnSensorData, this);
     Bind(wxEVT_MENU, &MainFrame::OnExpandAll, this, ID_ExpandAll);
     // Toggle expand/collapse on double-click (item activated)
@@ -144,6 +148,14 @@ void MainFrame::OnDataTimer(wxTimerEvent& event)
         return;
 
     QueueRandomDataSample();
+}
+
+void MainFrame::OnAgeTimer(wxTimerEvent& event)
+{
+    if (m_treeModel)
+    {
+        m_treeModel->RefreshElapsedTimes();
+    }
 }
 
 void MainFrame::OnSensorData(wxCommandEvent& event)
@@ -330,6 +342,10 @@ void MainFrame::QueueRandomDataSample()
 void MainFrame::OnClose(wxCloseEvent& event)
 {
     StopDataGeneration();
+    if (m_ageTimer.IsRunning())
+    {
+        m_ageTimer.Stop();
+    }
     // Ensure the data view control disassociates the model before it is destroyed.
     if (m_treeCtrl && m_treeModel)
     {
