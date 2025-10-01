@@ -49,6 +49,7 @@ private:
 
         // Menu bar
         ID_ExpandAll,
+        ID_CollapseAll,
 
         // Context menu entries
         ID_ExpandAllHere,
@@ -76,6 +77,7 @@ private:
     void OnItemContextMenu(wxDataViewEvent& event);
     void OnExpandAllHere(wxCommandEvent& event);
     void OnCollapseChildrenHere(wxCommandEvent& event);
+    void OnCollapseAll(wxCommandEvent& event);
     void StartDataGeneration();
     void StopDataGeneration();
     void QueueRandomDataSample();

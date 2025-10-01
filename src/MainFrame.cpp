@@ -66,6 +66,7 @@ void MainFrame::CreateMenuBar()
     // View menu: expand/collapse helpers
     wxMenu* menuView = new wxMenu;
     menuView->Append(ID_ExpandAll, "&Expand All\tCtrl-E", "Expand all nodes in the tree view");
+    menuView->Append(ID_CollapseAll, "&Collapse All\tCtrl-Shift-E", "Collapse all nodes in the tree view");
     menuBar->Append(menuView, "&View");
 
     SetMenuBar(menuBar);
@@ -134,6 +135,7 @@ void MainFrame::BindEvents()
     Bind(wxEVT_TIMER, &MainFrame::OnAgeTimer, this, ID_AgeTimer);
     Bind(wxEVT_SENSOR_DATA_SAMPLE, &MainFrame::OnSensorData, this);
     Bind(wxEVT_MENU, &MainFrame::OnExpandAll, this, ID_ExpandAll);
+    Bind(wxEVT_MENU, &MainFrame::OnCollapseAll, this, ID_CollapseAll);
     // Toggle expand/collapse on double-click (item activated)
     Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &MainFrame::OnItemActivated, this);
     // Context menu for items
@@ -169,17 +171,28 @@ void MainFrame::OnSensorData(wxCommandEvent& event)
     SetStatusText(wxString::Format("Samples received: %zu", (unsigned long long)m_samplesReceived));
 }
 
-// Helper to recursively expand items starting from a parent item
-static void ExpandAllRecursive(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
+// Recursively expand all descendants of a given item
+static void ExpandDescendants(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
 {
     wxDataViewItemArray children;
     model->GetChildren(parent, children);
     for (const wxDataViewItem& child : children)
     {
-        // Expand this child
         ctrl->Expand(child);
-        // Recurse
-        ExpandAllRecursive(ctrl, child, model);
+        ExpandDescendants(ctrl, child, model);
+    }
+}
+
+
+// Recursively collapse all descendants of a given item
+static void CollapseDescendants(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
+{
+    wxDataViewItemArray children;
+    model->GetChildren(parent, children);
+    for (const wxDataViewItem& child : children)
+    {
+        CollapseDescendants(ctrl, child, model);
+        ctrl->Collapse(child);
     }
 }
 
@@ -190,7 +203,16 @@ void MainFrame::OnExpandAll(wxCommandEvent& event)
 
     // Start from the invisible root
     wxDataViewItem root = wxDataViewItem(NULL);
-    ExpandAllRecursive(m_treeCtrl, root, m_treeModel.get());
+    ExpandDescendants(m_treeCtrl, root, m_treeModel.get());
+}
+
+void MainFrame::OnCollapseAll(wxCommandEvent& event)
+{
+    if (!m_treeCtrl || !m_treeModel)
+        return;
+
+    wxDataViewItem root = wxDataViewItem(NULL);
+    CollapseDescendants(m_treeCtrl, root, m_treeModel.get());
 }
 
 void MainFrame::OnItemActivated(wxDataViewEvent& event)
@@ -206,30 +228,6 @@ void MainFrame::OnItemActivated(wxDataViewEvent& event)
         m_treeCtrl->Collapse(item);
     else
         m_treeCtrl->Expand(item);
-}
-
-// Recursively expand all descendants of a given item
-static void ExpandDescendants(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
-{
-    wxDataViewItemArray children;
-    model->GetChildren(parent, children);
-    for (const wxDataViewItem& child : children)
-    {
-        ctrl->Expand(child);
-        ExpandDescendants(ctrl, child, model);
-    }
-}
-
-// Recursively collapse all descendants of a given item
-static void CollapseDescendants(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
-{
-    wxDataViewItemArray children;
-    model->GetChildren(parent, children);
-    for (const wxDataViewItem& child : children)
-    {
-        CollapseDescendants(ctrl, child, model);
-        ctrl->Collapse(child);
-    }
 }
 
 void MainFrame::OnItemContextMenu(wxDataViewEvent& event)
