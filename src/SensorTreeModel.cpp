@@ -10,16 +10,6 @@ SensorTreeModel::~SensorTreeModel()
 {
 }
 
-void SensorTreeModel::SetRootNodes(std::vector<std::unique_ptr<Node>> nodes)
-{
-    m_rootNodes = std::move(nodes);
-    std::sort(m_rootNodes.begin(), m_rootNodes.end(),
-        [](const std::unique_ptr<Node>& a, const std::unique_ptr<Node>& b) {
-            return a->GetName() < b->GetName();
-        });
-    Cleared();
-}
-
 Node* SensorTreeModel::AddRootNode(std::unique_ptr<Node> node)
 {
     if (!node)
@@ -231,11 +221,6 @@ unsigned int SensorTreeModel::GetChildren(const wxDataViewItem& parent, wxDataVi
         }
         return children.size();
     }
-}
-
-void SensorTreeModel::RefreshData()
-{
-    Cleared();
 }
 
 void SensorTreeModel::RefreshElapsedTimes()

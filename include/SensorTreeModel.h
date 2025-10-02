@@ -12,7 +12,6 @@ public:
     virtual ~SensorTreeModel();
     
     // Data management
-    void SetRootNodes(std::vector<std::unique_ptr<Node>> nodes);
     Node* AddRootNode(std::unique_ptr<Node> node);
     void ClearAll();
     
@@ -33,7 +32,6 @@ public:
     virtual unsigned int GetChildren(const wxDataViewItem& parent, wxDataViewItemArray& array) const override;
     
     // Helper methods
-    void RefreshData();
     Node* FindOrCreatePath(const std::vector<std::string>& path);
     void RefreshElapsedTimes();
     
