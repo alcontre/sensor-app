@@ -3,31 +3,63 @@
 #include <stdexcept>
 
 // DataValue implementation
+DataValue::DataValue(std::int64_t value)
+    : m_type(INTEGER)
+    , m_integerValue(value)
+    , m_doubleValue(0.0)
+{
+}
+
+DataValue::DataValue(int value)
+    : DataValue(static_cast<std::int64_t>(value))
+{
+}
+
 DataValue::DataValue(double value)
-    : m_type(NUMERIC)
-    , m_numericValue(value)
+    : m_type(DOUBLE)
+    , m_integerValue(0)
+    , m_doubleValue(value)
 {
 }
 
 DataValue::DataValue(const std::string& value)
     : m_type(STRING)
-    , m_numericValue(0.0)
+    , m_integerValue(0)
+    , m_doubleValue(0.0)
     , m_stringValue(value)
 {
 }
 
 DataValue::DataValue(const char* value)
     : m_type(STRING)
-    , m_numericValue(0.0)
+    , m_integerValue(0)
+    , m_doubleValue(0.0)
     , m_stringValue(value)
 {
 }
 
+std::int64_t DataValue::GetInteger() const
+{
+    if (m_type != INTEGER)
+        throw std::runtime_error("DataValue is not integer");
+    return m_integerValue;
+}
+
+double DataValue::GetDouble() const
+{
+    if (m_type != DOUBLE)
+        throw std::runtime_error("DataValue is not double");
+    return m_doubleValue;
+}
+
 double DataValue::GetNumeric() const
 {
-    if (m_type != NUMERIC)
-        throw std::runtime_error("DataValue is not numeric");
-    return m_numericValue;
+    if (m_type == DOUBLE)
+        return m_doubleValue;
+    if (m_type == INTEGER)
+        return static_cast<double>(m_integerValue);
+
+    throw std::runtime_error("DataValue is not numeric");
 }
 
 const std::string& DataValue::GetString() const
@@ -39,10 +71,14 @@ const std::string& DataValue::GetString() const
 
 std::string DataValue::GetDisplayString() const
 {
-    if (m_type == NUMERIC)
+    if (m_type == INTEGER)
+    {
+        return std::to_string(m_integerValue);
+    }
+    else if (m_type == DOUBLE)
     {
         std::ostringstream oss;
-        oss << m_numericValue;
+        oss << m_doubleValue;
         return oss.str();
     }
     else

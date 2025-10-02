@@ -2,31 +2,39 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <cstdint>
 
 // Simple value holder that can contain either a number or string
 class DataValue
 {
 public:
-    enum Type { NUMERIC, STRING };
+    enum Type { INTEGER, DOUBLE, STRING };
     
     // Constructors
+    DataValue(std::int64_t value);
+    DataValue(int value);
     DataValue(double value);
     DataValue(const std::string& value);
     DataValue(const char* value);
     
     // Type checking
     Type GetType() const { return m_type; }
-    bool IsNumeric() const { return m_type == NUMERIC; }
+    bool IsInteger() const { return m_type == INTEGER; }
+    bool IsDouble() const { return m_type == DOUBLE; }
     bool IsString() const { return m_type == STRING; }
+    bool IsNumeric() const { return m_type == INTEGER || m_type == DOUBLE; }
     
     // Value access
+    std::int64_t GetInteger() const;
+    double GetDouble() const;
     double GetNumeric() const;
     const std::string& GetString() const;
     std::string GetDisplayString() const;
 
 private:
     Type m_type;
-    double m_numericValue;
+    std::int64_t m_integerValue;
+    double m_doubleValue;
     std::string m_stringValue;
 };
 
