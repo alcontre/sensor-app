@@ -1,5 +1,8 @@
+#include "App.hpp"
+
 #include "MainFrame.h"
 
+#include <wx/socket.h>
 #include <wx/wx.h>
 
 class App : public wxApp
@@ -12,6 +15,8 @@ wxIMPLEMENT_APP(App);
 
 bool App::OnInit()
 {
+   wxSocketBase::Initialize();
+
    if (!wxApp::OnInit())
       return false;
 
