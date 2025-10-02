@@ -34,16 +34,12 @@ private:
 class SensorData
 {
 public:
-    SensorData(const std::vector<std::string>& path, const DataValue& value);
-    
-    // Path management
-    const std::vector<std::string>& GetPath() const { return m_path; }
-    void SetPath(const std::vector<std::string>& path) { m_path = path; }
-    
-    // Value management
-    const DataValue& GetValue() const { return m_value; }
-    void SetValue(const DataValue& value) { m_value = value; }
-    
+    SensorData(const std::vector<std::string> &path, const DataValue &value);
+
+    const std::vector<std::string> &GetPath() const { return m_path; }
+
+    const DataValue &GetValue() const { return m_value; }
+
     // Path utilities
     std::string GetFullPath(const std::string& separator = "/") const;
     std::string GetLeafName() const;
