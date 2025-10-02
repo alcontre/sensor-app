@@ -3,6 +3,7 @@
 
 #include "SensorDataEvent.h"
 #include "SensorDataGenerator.h"
+#include "SensorDataJsonWriter.h"
 
 #include <wx/dataview.h>
 #include <wx/event.h>
@@ -47,6 +48,7 @@ class MainFrame : public wxFrame
    std::atomic<bool> m_generationActive;
    SensorDataGenerator *m_dataThread;
    uint64_t m_samplesReceived;
+  std::unique_ptr<SensorDataJsonWriter> m_dataRecorder;
    // Track the item for which a context menu is opened
    wxDataViewItem m_contextItem;
 

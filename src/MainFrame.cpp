@@ -9,13 +9,16 @@ MainFrame::MainFrame() :
     m_treeCtrl(nullptr),
     m_ageTimer(this, ID_AgeTimer),
     m_generationActive(false),
-    m_dataThread(nullptr),
-    m_samplesReceived(0)
+   m_dataThread(nullptr),
+   m_samplesReceived(0)
 {
    CreateMenuBar();
    SetupStatusBar();
    CreateSensorTreeView();
    BindEvents();
+
+   const std::string logFileName = "sensor_log.json";
+   m_dataRecorder = std::make_unique<SensorDataJsonWriter>(logFileName);
 
    m_dataThread = new SensorDataGenerator(m_generationActive, this);
    if (m_dataThread) {
@@ -32,7 +35,15 @@ MainFrame::MainFrame() :
    StartDataGeneration();
    m_ageTimer.Start(250);
 
-   SetStatusText("Welcome to Sensor Tree Viewer! Auto data generation started.");
+   wxString status = "Welcome to Sensor Tree Viewer! Auto data generation started.";
+   if (m_dataRecorder && m_dataRecorder->IsOpen()) {
+      status += " Logging to ";
+      status += wxString::FromUTF8(logFileName.c_str());
+      status += ".";
+   } else {
+      status += " Logging disabled (unable to open log file).";
+   }
+   SetStatusText(status);
 }
 
 void MainFrame::CreateMenuBar()
@@ -140,6 +151,8 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
       return;
 
    m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue());
+   if (m_dataRecorder)
+      m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue());
    ++m_samplesReceived;
    SetStatusText(wxString::Format("Samples received: %zu", (unsigned long long)m_samplesReceived));
 }
@@ -259,6 +272,8 @@ void MainFrame::OnClose(wxCloseEvent &event)
       // Disassociate model to prevent wxDataViewCtrl from trying to remove notifier
       m_treeCtrl->AssociateModel(nullptr);
    }
+
+   m_dataRecorder.reset();
 
    // Proceed with default close handling
    event.Skip();
