@@ -4,23 +4,38 @@
 #include <stdexcept>
 
 // DataValue implementation
-DataValue::DataValue(std::int64_t value) : m_type(INTEGER), m_integerValue(value), m_doubleValue(0.0)
+DataValue::DataValue(std::int64_t value) :
+    m_type(INTEGER),
+    m_integerValue(value),
+    m_doubleValue(0.0)
 {
 }
 
-DataValue::DataValue(int value) : DataValue(static_cast<std::int64_t>(value))
+DataValue::DataValue(int value) :
+    DataValue(static_cast<std::int64_t>(value))
 {
 }
 
-DataValue::DataValue(double value) : m_type(DOUBLE), m_integerValue(0), m_doubleValue(value)
+DataValue::DataValue(double value) :
+    m_type(DOUBLE),
+    m_integerValue(0),
+    m_doubleValue(value)
 {
 }
 
-DataValue::DataValue(const std::string &value) : m_type(STRING), m_integerValue(0), m_doubleValue(0.0), m_stringValue(value)
+DataValue::DataValue(const std::string &value) :
+    m_type(STRING),
+    m_integerValue(0),
+    m_doubleValue(0.0),
+    m_stringValue(value)
 {
 }
 
-DataValue::DataValue(const char *value) : m_type(STRING), m_integerValue(0), m_doubleValue(0.0), m_stringValue(value)
+DataValue::DataValue(const char *value) :
+    m_type(STRING),
+    m_integerValue(0),
+    m_doubleValue(0.0),
+    m_stringValue(value)
 {
 }
 
@@ -69,7 +84,11 @@ std::string DataValue::GetDisplayString() const
 }
 
 // SensorData implementation
-SensorData::SensorData(const std::vector<std::string> &path, const DataValue &value) : m_path(path), m_value(value)
+SensorData::SensorData(
+    const std::vector<std::string> &path,
+    const DataValue &value) :
+    m_path(path),
+    m_value(value)
 {
 }
 

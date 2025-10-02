@@ -3,9 +3,14 @@
 #include "SensorDataGenerator.h"
 #include "SensorTreeModel.h"
 
-MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
-                             wxDefaultPosition, wxSize(800, 600)),
-                         m_treeCtrl(nullptr), m_ageTimer(this, ID_AgeTimer), m_generationActive(false), m_dataThread(nullptr), m_samplesReceived(0)
+MainFrame::MainFrame() :
+    wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
+        wxDefaultPosition, wxSize(800, 600)),
+    m_treeCtrl(nullptr),
+    m_ageTimer(this, ID_AgeTimer),
+    m_generationActive(false),
+    m_dataThread(nullptr),
+    m_samplesReceived(0)
 {
    CreateMenuBar();
    SetupStatusBar();

@@ -6,8 +6,11 @@
 #include <chrono>
 #include <cstdint>
 
-SensorDataGenerator::SensorDataGenerator(std::atomic<bool> &activeFlag, wxEvtHandler *target) : wxThread(wxTHREAD_DETACHED), m_activeFlag(activeFlag), m_target(target), m_rng(static_cast<unsigned int>(
-                                                                                                                                                                             std::chrono::steady_clock::now().time_since_epoch().count()))
+SensorDataGenerator::SensorDataGenerator(std::atomic<bool> &activeFlag, wxEvtHandler *target) :
+    wxThread(wxTHREAD_DETACHED),
+    m_activeFlag(activeFlag),
+    m_target(target),
+    m_rng(static_cast<unsigned int>(std::chrono::steady_clock::now().time_since_epoch().count()))
 {
 }
 
