@@ -1,82 +1,72 @@
 #include "MainFrame.h"
-#include "SensorTreeModel.h"
 #include "SensorDataEvent.h"
 #include "SensorDataGenerator.h"
+#include "SensorTreeModel.h"
 
-MainFrame::MainFrame()
-    : wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer", 
-              wxDefaultPosition, wxSize(800, 600))
-    , m_treeCtrl(nullptr)
-    , m_ageTimer(this, ID_AgeTimer)
-    , m_generationActive(false)
-    , m_dataThread(nullptr)
-    , m_samplesReceived(0)
+MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
+                             wxDefaultPosition, wxSize(800, 600)),
+                         m_treeCtrl(nullptr), m_ageTimer(this, ID_AgeTimer), m_generationActive(false), m_dataThread(nullptr), m_samplesReceived(0)
 {
-    CreateMenuBar();
-    SetupStatusBar();
-    CreateSensorTreeView();
-    BindEvents();
+   CreateMenuBar();
+   SetupStatusBar();
+   CreateSensorTreeView();
+   BindEvents();
 
-    m_dataThread = new SensorDataGenerator(m_generationActive, this);
-    if (m_dataThread)
-    {
-        if (m_dataThread->Run() != wxTHREAD_NO_ERROR)
-        {
-            delete m_dataThread;
-            m_dataThread = nullptr;
-        }
-        else
-        {
-            // Detached thread will self-delete; clear local pointer to avoid dangling access
-            m_dataThread = nullptr;
-        }
-    }
-    
-    // Start automatic data generation (will run indefinitely)
-    StartDataGeneration();
-    m_ageTimer.Start(250);
+   m_dataThread = new SensorDataGenerator(m_generationActive, this);
+   if (m_dataThread) {
+      if (m_dataThread->Run() != wxTHREAD_NO_ERROR) {
+         delete m_dataThread;
+         m_dataThread = nullptr;
+      } else {
+         // Detached thread will self-delete; clear local pointer to avoid dangling access
+         m_dataThread = nullptr;
+      }
+   }
 
-    SetStatusText("Welcome to Sensor Tree Viewer! Auto data generation started.");
+   // Start automatic data generation (will run indefinitely)
+   StartDataGeneration();
+   m_ageTimer.Start(250);
+
+   SetStatusText("Welcome to Sensor Tree Viewer! Auto data generation started.");
 }
 
 void MainFrame::CreateMenuBar()
 {
-    wxMenu* menuFile = new wxMenu;
-    menuFile->Append(ID_Hello, "&About...\tCtrl-A",
-                     "Show information about this application");
-    menuFile->AppendSeparator();
-    menuFile->Append(wxID_EXIT);
+   wxMenu *menuFile = new wxMenu;
+   menuFile->Append(ID_Hello, "&About...\tCtrl-A",
+       "Show information about this application");
+   menuFile->AppendSeparator();
+   menuFile->Append(wxID_EXIT);
 
+   wxMenuBar *menuBar = new wxMenuBar;
+   menuBar->Append(menuFile, "&File");
 
-    wxMenuBar* menuBar = new wxMenuBar;
-    menuBar->Append(menuFile, "&File");
+   // View menu: expand/collapse helpers
+   wxMenu *menuView = new wxMenu;
+   menuView->Append(ID_ExpandAll, "&Expand All\tCtrl-E", "Expand all nodes in the tree view");
+   menuView->Append(ID_CollapseAll, "&Collapse All\tCtrl-Shift-E", "Collapse all nodes in the tree view");
+   menuBar->Append(menuView, "&View");
 
-    // View menu: expand/collapse helpers
-    wxMenu* menuView = new wxMenu;
-    menuView->Append(ID_ExpandAll, "&Expand All\tCtrl-E", "Expand all nodes in the tree view");
-    menuView->Append(ID_CollapseAll, "&Collapse All\tCtrl-Shift-E", "Collapse all nodes in the tree view");
-    menuBar->Append(menuView, "&View");
-
-    SetMenuBar(menuBar);
+   SetMenuBar(menuBar);
 }
 
 void MainFrame::SetupStatusBar()
 {
-    CreateStatusBar();
-    SetStatusText("Ready");
+   CreateStatusBar();
+   SetStatusText("Ready");
 }
 
-void MainFrame::OnExit(wxCommandEvent& event)
+void MainFrame::OnExit(wxCommandEvent &event)
 {
-    Close(true);
+   Close(true);
 }
 
-void MainFrame::OnAbout(wxCommandEvent& event)
+void MainFrame::OnAbout(wxCommandEvent &event)
 {
-    wxMessageBox("Sensor Tree Viewer\n"
-                 "A hierarchical sensor data display application\n"
-                 "Supports arbitrary hierarchical data structures",
-                 "About Sensor Tree Viewer", wxOK | wxICON_INFORMATION);
+   wxMessageBox("Sensor Tree Viewer\n"
+                "A hierarchical sensor data display application\n"
+                "Supports arbitrary hierarchical data structures",
+       "About Sensor Tree Viewer", wxOK | wxICON_INFORMATION);
 }
 
 // Removed manual test data generation; data is created by the auto-generator
@@ -85,192 +75,186 @@ void MainFrame::OnAbout(wxCommandEvent& event)
 
 void MainFrame::CreateSensorTreeView()
 {
-    // Create main panel
-    wxPanel* panel = new wxPanel(this, wxID_ANY);
-    
-    // Create the tree model
-    m_treeModel = std::make_shared<SensorTreeModel>();
-    
-    // Create the data view control
-    m_treeCtrl = new wxDataViewCtrl(panel, wxID_ANY, 
-                                   wxDefaultPosition, wxDefaultSize,
-                                   wxDV_MULTIPLE | wxDV_ROW_LINES | wxDV_HORIZ_RULES);
-    
-    // Associate the model with the control
-    m_treeCtrl->AssociateModel(m_treeModel.get());
-    
-    // Add columns
-    m_treeCtrl->AppendTextColumn("Name", SensorTreeModel::COL_NAME, wxDATAVIEW_CELL_INERT, 200);
-    m_treeCtrl->AppendTextColumn("Value", SensorTreeModel::COL_VALUE, wxDATAVIEW_CELL_INERT, 120);
-    m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100);
-    
-    // Layout
-    wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
-    sizer->Add(m_treeCtrl, 1, wxEXPAND | wxALL, 5);
-    panel->SetSizer(sizer);
+   // Create main panel
+   wxPanel *panel = new wxPanel(this, wxID_ANY);
+
+   // Create the tree model
+   m_treeModel = std::make_shared<SensorTreeModel>();
+
+   // Create the data view control
+   m_treeCtrl = new wxDataViewCtrl(panel, wxID_ANY,
+       wxDefaultPosition, wxDefaultSize,
+       wxDV_MULTIPLE | wxDV_ROW_LINES | wxDV_HORIZ_RULES);
+
+   // Associate the model with the control
+   m_treeCtrl->AssociateModel(m_treeModel.get());
+
+   // Add columns
+   m_treeCtrl->AppendTextColumn("Name", SensorTreeModel::COL_NAME, wxDATAVIEW_CELL_INERT, 200);
+   m_treeCtrl->AppendTextColumn("Value", SensorTreeModel::COL_VALUE, wxDATAVIEW_CELL_INERT, 120);
+   m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100);
+
+   // Layout
+   wxBoxSizer *sizer = new wxBoxSizer(wxVERTICAL);
+   sizer->Add(m_treeCtrl, 1, wxEXPAND | wxALL, 5);
+   panel->SetSizer(sizer);
 }
 
 // PopulateTestData removed: tree will be populated dynamically by incoming samples
 
 void MainFrame::BindEvents()
 {
-    // Bind menu events using modern Bind() syntax
-    Bind(wxEVT_MENU, &MainFrame::OnAbout, this, ID_Hello);
-    Bind(wxEVT_MENU, &MainFrame::OnExit, this, wxID_EXIT);
-    // Bind close event to ensure model is disassociated before destruction
-    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
-    Bind(wxEVT_TIMER, &MainFrame::OnAgeTimer, this, ID_AgeTimer);
-    Bind(wxEVT_SENSOR_DATA_SAMPLE, &MainFrame::OnSensorData, this);
-    Bind(wxEVT_MENU, &MainFrame::OnExpandAll, this, ID_ExpandAll);
-    Bind(wxEVT_MENU, &MainFrame::OnCollapseAll, this, ID_CollapseAll);
-    // Toggle expand/collapse on double-click (item activated)
-    Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &MainFrame::OnItemActivated, this);
-    // Context menu for items
-    Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
-    Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
-    Bind(wxEVT_MENU, &MainFrame::OnCollapseChildrenHere, this, ID_CollapseChildrenHere);
+   // Bind menu events using modern Bind() syntax
+   Bind(wxEVT_MENU, &MainFrame::OnAbout, this, ID_Hello);
+   Bind(wxEVT_MENU, &MainFrame::OnExit, this, wxID_EXIT);
+   // Bind close event to ensure model is disassociated before destruction
+   Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
+   Bind(wxEVT_TIMER, &MainFrame::OnAgeTimer, this, ID_AgeTimer);
+   Bind(wxEVT_SENSOR_DATA_SAMPLE, &MainFrame::OnSensorData, this);
+   Bind(wxEVT_MENU, &MainFrame::OnExpandAll, this, ID_ExpandAll);
+   Bind(wxEVT_MENU, &MainFrame::OnCollapseAll, this, ID_CollapseAll);
+   // Toggle expand/collapse on double-click (item activated)
+   Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &MainFrame::OnItemActivated, this);
+   // Context menu for items
+   Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
+   Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
+   Bind(wxEVT_MENU, &MainFrame::OnCollapseChildrenHere, this, ID_CollapseChildrenHere);
 }
 
-void MainFrame::OnAgeTimer(wxTimerEvent& event)
+void MainFrame::OnAgeTimer(wxTimerEvent &event)
 {
-    if (m_treeModel)
-    {
-        m_treeModel->RefreshElapsedTimes();
-    }
+   if (m_treeModel) {
+      m_treeModel->RefreshElapsedTimes();
+   }
 }
 
-void MainFrame::OnSensorData(wxCommandEvent& event)
+void MainFrame::OnSensorData(wxCommandEvent &event)
 {
-    auto* sampleEvent = dynamic_cast<SensorDataEvent*>(&event);
-    if (!sampleEvent || !m_treeModel)
-        return;
+   auto *sampleEvent = dynamic_cast<SensorDataEvent *>(&event);
+   if (!sampleEvent || !m_treeModel)
+      return;
 
-    m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue());
-    ++m_samplesReceived;
-    SetStatusText(wxString::Format("Samples received: %zu", (unsigned long long)m_samplesReceived));
+   m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue());
+   ++m_samplesReceived;
+   SetStatusText(wxString::Format("Samples received: %zu", (unsigned long long)m_samplesReceived));
 }
 
 // Recursively expand all descendants of a given item
-static void ExpandDescendants(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
+static void ExpandDescendants(wxDataViewCtrl *ctrl, const wxDataViewItem &parent, const SensorTreeModel *model)
 {
-    wxDataViewItemArray children;
-    model->GetChildren(parent, children);
-    for (const wxDataViewItem& child : children)
-    {
-        ctrl->Expand(child);
-        ExpandDescendants(ctrl, child, model);
-    }
+   wxDataViewItemArray children;
+   model->GetChildren(parent, children);
+   for (const wxDataViewItem &child : children) {
+      ctrl->Expand(child);
+      ExpandDescendants(ctrl, child, model);
+   }
 }
-
 
 // Recursively collapse all descendants of a given item
-static void CollapseDescendants(wxDataViewCtrl* ctrl, const wxDataViewItem& parent, const SensorTreeModel* model)
+static void CollapseDescendants(wxDataViewCtrl *ctrl, const wxDataViewItem &parent, const SensorTreeModel *model)
 {
-    wxDataViewItemArray children;
-    model->GetChildren(parent, children);
-    for (const wxDataViewItem& child : children)
-    {
-        CollapseDescendants(ctrl, child, model);
-        ctrl->Collapse(child);
-    }
+   wxDataViewItemArray children;
+   model->GetChildren(parent, children);
+   for (const wxDataViewItem &child : children) {
+      CollapseDescendants(ctrl, child, model);
+      ctrl->Collapse(child);
+   }
 }
 
-void MainFrame::OnExpandAll(wxCommandEvent& event)
+void MainFrame::OnExpandAll(wxCommandEvent &event)
 {
-    if (!m_treeCtrl || !m_treeModel)
-        return;
+   if (!m_treeCtrl || !m_treeModel)
+      return;
 
-    // Start from the invisible root
-    wxDataViewItem root = wxDataViewItem(NULL);
-    ExpandDescendants(m_treeCtrl, root, m_treeModel.get());
+   // Start from the invisible root
+   wxDataViewItem root = wxDataViewItem(NULL);
+   ExpandDescendants(m_treeCtrl, root, m_treeModel.get());
 }
 
-void MainFrame::OnCollapseAll(wxCommandEvent& event)
+void MainFrame::OnCollapseAll(wxCommandEvent &event)
 {
-    if (!m_treeCtrl || !m_treeModel)
-        return;
+   if (!m_treeCtrl || !m_treeModel)
+      return;
 
-    wxDataViewItem root = wxDataViewItem(NULL);
-    CollapseDescendants(m_treeCtrl, root, m_treeModel.get());
+   wxDataViewItem root = wxDataViewItem(NULL);
+   CollapseDescendants(m_treeCtrl, root, m_treeModel.get());
 }
 
-void MainFrame::OnItemActivated(wxDataViewEvent& event)
+void MainFrame::OnItemActivated(wxDataViewEvent &event)
 {
-    if (!m_treeCtrl)
-        return;
+   if (!m_treeCtrl)
+      return;
 
-    wxDataViewItem item = event.GetItem();
-    if (!item.IsOk())
-        return;
+   wxDataViewItem item = event.GetItem();
+   if (!item.IsOk())
+      return;
 
-    if (m_treeCtrl->IsExpanded(item))
-        m_treeCtrl->Collapse(item);
-    else
-        m_treeCtrl->Expand(item);
+   if (m_treeCtrl->IsExpanded(item))
+      m_treeCtrl->Collapse(item);
+   else
+      m_treeCtrl->Expand(item);
 }
 
-void MainFrame::OnItemContextMenu(wxDataViewEvent& event)
+void MainFrame::OnItemContextMenu(wxDataViewEvent &event)
 {
-    m_contextItem = event.GetItem();
-    wxMenu menu;
-    menu.Append(ID_ExpandAllHere, "Expand All");
-    menu.Append(ID_CollapseChildrenHere, "Collapse Children");
-    PopupMenu(&menu);
+   m_contextItem = event.GetItem();
+   wxMenu menu;
+   menu.Append(ID_ExpandAllHere, "Expand All");
+   menu.Append(ID_CollapseChildrenHere, "Collapse Children");
+   PopupMenu(&menu);
 }
 
-void MainFrame::OnExpandAllHere(wxCommandEvent& event)
+void MainFrame::OnExpandAllHere(wxCommandEvent &event)
 {
-    if (!m_treeCtrl || !m_treeModel)
-        return;
+   if (!m_treeCtrl || !m_treeModel)
+      return;
 
-    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
-    ExpandDescendants(m_treeCtrl, start, m_treeModel.get());
+   wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
+   ExpandDescendants(m_treeCtrl, start, m_treeModel.get());
 }
 
-void MainFrame::OnCollapseChildrenHere(wxCommandEvent& event)
+void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
 {
-    if (!m_treeCtrl || !m_treeModel)
-        return;
+   if (!m_treeCtrl || !m_treeModel)
+      return;
 
-    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
-    CollapseDescendants(m_treeCtrl, start, m_treeModel.get());
-    // Also collapse the starting item itself if it's a valid node
-    if (m_contextItem.IsOk())
-        m_treeCtrl->Collapse(m_contextItem);
+   wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
+   CollapseDescendants(m_treeCtrl, start, m_treeModel.get());
+   // Also collapse the starting item itself if it's a valid node
+   if (m_contextItem.IsOk())
+      m_treeCtrl->Collapse(m_contextItem);
 }
 
 void MainFrame::StartDataGeneration()
 {
-    if (m_generationActive.load())
-        return;
+   if (m_generationActive.load())
+      return;
 
-    m_generationActive = true;
-    SetStatusText("Auto data generation started");
+   m_generationActive = true;
+   SetStatusText("Auto data generation started");
 }
 
 void MainFrame::StopDataGeneration()
 {
-    if (!m_generationActive.load())
-        return;
+   if (!m_generationActive.load())
+      return;
 
-    m_generationActive = false;
-    SetStatusText("Auto data generation stopped");
+   m_generationActive = false;
+   SetStatusText("Auto data generation stopped");
 }
 
-void MainFrame::OnClose(wxCloseEvent& event)
+void MainFrame::OnClose(wxCloseEvent &event)
 {
-    StopDataGeneration();
-    if (m_ageTimer.IsRunning())
-    {
-        m_ageTimer.Stop();
-    }
-    // Ensure the data view control disassociates the model before it is destroyed.
-    if (m_treeCtrl && m_treeModel)
-    {
-        // Disassociate model to prevent wxDataViewCtrl from trying to remove notifier
-        m_treeCtrl->AssociateModel(nullptr);
-    }
+   StopDataGeneration();
+   if (m_ageTimer.IsRunning()) {
+      m_ageTimer.Stop();
+   }
+   // Ensure the data view control disassociates the model before it is destroyed.
+   if (m_treeCtrl && m_treeModel) {
+      // Disassociate model to prevent wxDataViewCtrl from trying to remove notifier
+      m_treeCtrl->AssociateModel(nullptr);
+   }
 
-    // Proceed with default close handling
-    event.Skip();
+   // Proceed with default close handling
+   event.Skip();
 }

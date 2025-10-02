@@ -4,64 +4,63 @@
 #include "SensorDataEvent.h"
 #include "SensorDataGenerator.h"
 
-#include <wx/wx.h>
 #include <wx/dataview.h>
-#include <wx/timer.h>
 #include <wx/event.h>
+#include <wx/timer.h>
+#include <wx/wx.h>
 
+#include <atomic>
 #include <memory>
 #include <vector>
-#include <atomic>
-
 
 class MainFrame : public wxFrame
 {
-public:
-    MainFrame();
+ public:
+   MainFrame();
 
-private:
-    void OnExit(wxCommandEvent& event);
-    void OnAbout(wxCommandEvent& event);
-    
-    void CreateMenuBar();
-    void SetupStatusBar();
-    void CreateSensorTreeView();
+ private:
+   void OnExit(wxCommandEvent &event);
+   void OnAbout(wxCommandEvent &event);
 
-    enum
-    {
-        ID_Hello = 1,
-        ID_AgeTimer,
+   void CreateMenuBar();
+   void SetupStatusBar();
+   void CreateSensorTreeView();
 
-        // Menu bar
-        ID_ExpandAll,
-        ID_CollapseAll,
+   enum
+   {
+      ID_Hello = 1,
+      ID_AgeTimer,
 
-        // Context menu entries
-        ID_ExpandAllHere,
-        ID_CollapseChildrenHere
-    };
+      // Menu bar
+      ID_ExpandAll,
+      ID_CollapseAll,
 
-    // UI components
-    wxDataViewCtrl* m_treeCtrl;
-    std::shared_ptr<SensorTreeModel> m_treeModel;
-    wxTimer m_ageTimer;
-    std::atomic<bool> m_generationActive;
-    SensorDataGenerator* m_dataThread;
-    uint64_t m_samplesReceived;
-    // Track the item for which a context menu is opened
-    wxDataViewItem m_contextItem;
+      // Context menu entries
+      ID_ExpandAllHere,
+      ID_CollapseChildrenHere
+   };
 
-    // Event binding setup
-    void BindEvents();
-    void OnClose(wxCloseEvent& event);
-    void OnAgeTimer(wxTimerEvent& event);
-    void OnSensorData(wxCommandEvent& event);
-    void OnExpandAll(wxCommandEvent& event);
-    void OnItemActivated(wxDataViewEvent& event);
-    void OnItemContextMenu(wxDataViewEvent& event);
-    void OnExpandAllHere(wxCommandEvent& event);
-    void OnCollapseChildrenHere(wxCommandEvent& event);
-    void OnCollapseAll(wxCommandEvent& event);
-    void StartDataGeneration();
-    void StopDataGeneration();
+   // UI components
+   wxDataViewCtrl *m_treeCtrl;
+   std::shared_ptr<SensorTreeModel> m_treeModel;
+   wxTimer m_ageTimer;
+   std::atomic<bool> m_generationActive;
+   SensorDataGenerator *m_dataThread;
+   uint64_t m_samplesReceived;
+   // Track the item for which a context menu is opened
+   wxDataViewItem m_contextItem;
+
+   // Event binding setup
+   void BindEvents();
+   void OnClose(wxCloseEvent &event);
+   void OnAgeTimer(wxTimerEvent &event);
+   void OnSensorData(wxCommandEvent &event);
+   void OnExpandAll(wxCommandEvent &event);
+   void OnItemActivated(wxDataViewEvent &event);
+   void OnItemContextMenu(wxDataViewEvent &event);
+   void OnExpandAllHere(wxCommandEvent &event);
+   void OnCollapseChildrenHere(wxCommandEvent &event);
+   void OnCollapseAll(wxCommandEvent &event);
+   void StartDataGeneration();
+   void StopDataGeneration();
 };
