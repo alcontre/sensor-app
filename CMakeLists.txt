@@ -18,6 +18,7 @@ add_executable(${PROJECT_NAME}
     src/App.cpp
     src/SensorData.cpp
     src/SensorDataEvent.cpp
+    src/SensorDataGenerator.cpp
     src/Node.cpp
     src/SensorTreeModel.cpp
 )

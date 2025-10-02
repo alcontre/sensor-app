@@ -1,22 +1,36 @@
 #include "MainFrame.h"
 #include "SensorTreeModel.h"
 #include "SensorDataEvent.h"
-#include <random>
-#include <chrono>
+#include "SensorDataGenerator.h"
 
 MainFrame::MainFrame()
     : wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer", 
               wxDefaultPosition, wxSize(800, 600))
     , m_treeCtrl(nullptr)
-    , m_dataTimer(this, ID_DataTimer)
     , m_ageTimer(this, ID_AgeTimer)
     , m_generationActive(false)
+    , m_dataThread(nullptr)
     , m_samplesReceived(0)
 {
     CreateMenuBar();
     SetupStatusBar();
     CreateSensorTreeView();
     BindEvents();
+
+    m_dataThread = new SensorDataGenerator(m_generationActive, this);
+    if (m_dataThread)
+    {
+        if (m_dataThread->Run() != wxTHREAD_NO_ERROR)
+        {
+            delete m_dataThread;
+            m_dataThread = nullptr;
+        }
+        else
+        {
+            // Detached thread will self-delete; clear local pointer to avoid dangling access
+            m_dataThread = nullptr;
+        }
+    }
     
     // Start automatic data generation (will run indefinitely)
     StartDataGeneration();
@@ -105,7 +119,6 @@ void MainFrame::BindEvents()
     Bind(wxEVT_MENU, &MainFrame::OnExit, this, wxID_EXIT);
     // Bind close event to ensure model is disassociated before destruction
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
-    Bind(wxEVT_TIMER, &MainFrame::OnDataTimer, this, ID_DataTimer);
     Bind(wxEVT_TIMER, &MainFrame::OnAgeTimer, this, ID_AgeTimer);
     Bind(wxEVT_SENSOR_DATA_SAMPLE, &MainFrame::OnSensorData, this);
     Bind(wxEVT_MENU, &MainFrame::OnExpandAll, this, ID_ExpandAll);
@@ -116,14 +129,6 @@ void MainFrame::BindEvents()
     Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
     Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
     Bind(wxEVT_MENU, &MainFrame::OnCollapseChildrenHere, this, ID_CollapseChildrenHere);
-}
-
-void MainFrame::OnDataTimer(wxTimerEvent& event)
-{
-    if (!m_generationActive)
-        return;
-
-    QueueRandomDataSample();
 }
 
 void MainFrame::OnAgeTimer(wxTimerEvent& event)
@@ -236,79 +241,20 @@ void MainFrame::OnCollapseChildrenHere(wxCommandEvent& event)
 
 void MainFrame::StartDataGeneration()
 {
-    if (m_generationActive)
+    if (m_generationActive.load())
         return;
 
     m_generationActive = true;
-    if (!m_dataTimer.IsRunning())
-    {
-        m_dataTimer.Start(1000);
-    }
     SetStatusText("Auto data generation started");
 }
 
 void MainFrame::StopDataGeneration()
 {
-    if (!m_generationActive)
+    if (!m_generationActive.load())
         return;
 
     m_generationActive = false;
-    if (m_dataTimer.IsRunning())
-    {
-        m_dataTimer.Stop();
-    }
     SetStatusText("Auto data generation stopped");
-}
-
-void MainFrame::QueueRandomDataSample()
-{
-    struct SampleDefinition
-    {
-        std::vector<std::string> path;
-        enum class ValueType { Numeric, String } type;
-        double minValue;
-        double maxValue;
-        std::vector<std::string> stringOptions;
-    };
-
-    static const std::vector<SampleDefinition> definitions = {
-        { {"Server01", "CPU", "Core0", "Temperature"}, SampleDefinition::ValueType::Numeric, 35.0, 65.0, {} },
-        { {"Server01", "CPU", "Core0", "Voltage"}, SampleDefinition::ValueType::Numeric, 1.0, 1.2, {} },
-        { {"Server01", "CPU", "Core1", "Temperature"}, SampleDefinition::ValueType::Numeric, 35.0, 65.0, {} },
-        { {"Server01", "GPU", "Temperature"}, SampleDefinition::ValueType::Numeric, 45.0, 80.0, {} },
-        { {"Server01", "GPU", "Status"}, SampleDefinition::ValueType::String, 0.0, 0.0, {"Running", "Idle", "Throttled"} },
-        { {"Server02", "CPU", "Temperature"}, SampleDefinition::ValueType::Numeric, 32.0, 60.0, {} },
-        { {"Server02", "Status"}, SampleDefinition::ValueType::String, 0.0, 0.0, {"Online", "Maintenance", "Offline"} },
-        { {"Network", "Router01", "Port1", "Throughput"}, SampleDefinition::ValueType::Numeric, 1000.0, 10000.0, {} },
-        { {"Network", "Router01", "Port1", "LinkStatus"}, SampleDefinition::ValueType::String, 0.0, 0.0, {"Up", "Down", "Flapping"} },
-        { {"Network", "Router01", "Port2", "LinkStatus"}, SampleDefinition::ValueType::String, 0.0, 0.0, {"Up", "Down"} }
-    };
-
-    if (definitions.empty())
-        return;
-
-    static std::mt19937 rng(static_cast<unsigned int>(
-        std::chrono::steady_clock::now().time_since_epoch().count()));
-
-    std::uniform_int_distribution<size_t> defDist(0, definitions.size() - 1);
-    const auto& def = definitions[defDist(rng)];
-
-    DataValue value(0.0);
-    if (def.type == SampleDefinition::ValueType::Numeric)
-    {
-        std::uniform_real_distribution<double> valDist(def.minValue, def.maxValue);
-        value = DataValue(valDist(rng));
-    }
-    else
-    {
-        if (def.stringOptions.empty())
-            return;
-        std::uniform_int_distribution<size_t> strDist(0, def.stringOptions.size() - 1);
-        value = DataValue(def.stringOptions[strDist(rng)]);
-    }
-
-    auto* evt = new SensorDataEvent(def.path, value);
-    wxQueueEvent(this, evt);
 }
 
 void MainFrame::OnClose(wxCloseEvent& event)

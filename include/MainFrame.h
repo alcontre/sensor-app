@@ -1,13 +1,18 @@
 #pragma once
+#include "SensorTreeModel.h"
+
+#include "SensorDataEvent.h"
+#include "SensorDataGenerator.h"
+
 #include <wx/wx.h>
 #include <wx/dataview.h>
 #include <wx/timer.h>
 #include <wx/event.h>
-#include "SensorTreeModel.h"
+
 #include <memory>
 #include <vector>
+#include <atomic>
 
-#include "SensorDataEvent.h"
 
 class MainFrame : public wxFrame
 {
@@ -25,7 +30,6 @@ private:
     enum
     {
         ID_Hello = 1,
-        ID_DataTimer,
         ID_AgeTimer,
 
         // Menu bar
@@ -40,9 +44,9 @@ private:
     // UI components
     wxDataViewCtrl* m_treeCtrl;
     std::shared_ptr<SensorTreeModel> m_treeModel;
-    wxTimer m_dataTimer;
     wxTimer m_ageTimer;
-    bool m_generationActive;
+    std::atomic<bool> m_generationActive;
+    SensorDataGenerator* m_dataThread;
     uint64_t m_samplesReceived;
     // Track the item for which a context menu is opened
     wxDataViewItem m_contextItem;
@@ -50,7 +54,6 @@ private:
     // Event binding setup
     void BindEvents();
     void OnClose(wxCloseEvent& event);
-    void OnDataTimer(wxTimerEvent& event);
     void OnAgeTimer(wxTimerEvent& event);
     void OnSensorData(wxCommandEvent& event);
     void OnExpandAll(wxCommandEvent& event);
@@ -61,5 +64,4 @@ private:
     void OnCollapseAll(wxCommandEvent& event);
     void StartDataGeneration();
     void StopDataGeneration();
-    void QueueRandomDataSample();
 };
