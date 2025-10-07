@@ -31,6 +31,7 @@ class SensorTreeModel : public wxDataViewModel
 
    virtual void GetValue(wxVariant &variant, const wxDataViewItem &item, unsigned int col) const override;
    virtual bool SetValue(const wxVariant &variant, const wxDataViewItem &item, unsigned int col) override;
+   virtual bool GetAttr(const wxDataViewItem &item, unsigned int col, wxDataViewItemAttr &attr) const override;
 
    virtual wxDataViewItem GetParent(const wxDataViewItem &item) const override;
    virtual bool IsContainer(const wxDataViewItem &item) const override;
@@ -60,5 +61,6 @@ class SensorTreeModel : public wxDataViewModel
    wxDataViewItem CreateItemFromNode(Node *node) const;
    bool IsNodeVisible(const Node *node) const;
    bool NodeMatchesFilter(const Node *node) const;
+   bool NodeMatchesHighlightFilter(const Node *node) const;
    bool HasVisibleChildren(const Node *node) const;
 };

@@ -185,6 +185,26 @@ bool SensorTreeModel::SetValue(const wxVariant &variant, const wxDataViewItem &i
    return false;
 }
 
+bool SensorTreeModel::GetAttr(const wxDataViewItem &item, unsigned int col, wxDataViewItemAttr &attr) const
+{
+   if (m_filterLower.IsEmpty())
+      return false;
+
+   if (col != COL_NAME)
+      return false;
+
+   Node *node = GetNodeFromItem(item);
+   if (!node)
+      return false;
+
+   if (!NodeMatchesHighlightFilter(node))
+      return false;
+
+   attr.SetBold(true);
+   attr.SetColour(*wxBLUE);
+   return true;
+}
+
 wxDataViewItem SensorTreeModel::GetParent(const wxDataViewItem &item) const
 {
    Node *node = GetNodeFromItem(item);
@@ -290,6 +310,15 @@ bool SensorTreeModel::NodeMatchesFilter(const Node *node) const
 
    wxString path = wxString::FromUTF8(node->GetFullPath("/").c_str());
    return path.Lower().Find(m_filterLower) != wxNOT_FOUND;
+}
+
+bool SensorTreeModel::NodeMatchesHighlightFilter(const Node *node) const
+{
+   if (!node || m_filterLower.IsEmpty())
+      return false;
+
+   wxString name = wxString::FromUTF8(node->GetName().c_str());
+   return name.Lower().Find(m_filterLower) != wxNOT_FOUND;
 }
 
 bool SensorTreeModel::HasVisibleChildren(const Node *node) const
