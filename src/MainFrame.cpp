@@ -7,10 +7,11 @@ MainFrame::MainFrame() :
     wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
         wxDefaultPosition, wxSize(800, 600)),
     m_treeCtrl(nullptr),
+    m_filterCtrl(nullptr),
     m_ageTimer(this, ID_AgeTimer),
     m_generationActive(false),
-   m_dataThread(nullptr),
-   m_samplesReceived(0)
+    m_dataThread(nullptr),
+    m_samplesReceived(0)
 {
    CreateMenuBar();
    SetupStatusBar();
@@ -51,7 +52,7 @@ void MainFrame::CreateMenuBar()
        "Show information about this application");
    // Toggle automatic data generator
    menuFile->AppendCheckItem(ID_ToggleDataGen, "&Toggle Data Generator",
-      "Enable or disable automatic sensor data generation");
+       "Enable or disable automatic sensor data generation");
    menuFile->AppendSeparator();
    menuFile->Append(wxID_EXIT);
 
@@ -74,7 +75,7 @@ void MainFrame::SetupStatusBar()
    CreateStatusBar(2);
 
    // Set widths: left field stretches (-1), right field fixed to 200 pixels
-   int widths[2] = { -1, 200 };
+   int widths[2] = {-1, 200};
    if (GetStatusBar())
       GetStatusBar()->SetStatusWidths(2, widths);
 
@@ -122,8 +123,17 @@ void MainFrame::CreateSensorTreeView()
    m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100);
 
    // Layout
-   wxBoxSizer *sizer = new wxBoxSizer(wxVERTICAL);
-   sizer->Add(m_treeCtrl, 1, wxEXPAND | wxALL, 5);
+   wxBoxSizer *sizer         = new wxBoxSizer(wxVERTICAL);
+   wxBoxSizer *filterSizer   = new wxBoxSizer(wxHORIZONTAL);
+   wxStaticText *filterLabel = new wxStaticText(panel, wxID_ANY, "Filter:");
+   m_filterCtrl              = new wxTextCtrl(panel, wxID_ANY);
+   m_filterCtrl->SetHint("Type to filter sensors...");
+
+   filterSizer->Add(filterLabel, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
+   filterSizer->Add(m_filterCtrl, 1, wxEXPAND);
+
+   sizer->Add(filterSizer, 0, wxEXPAND | wxALL, 5);
+   sizer->Add(m_treeCtrl, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 5);
    panel->SetSizer(sizer);
 }
 
@@ -147,6 +157,10 @@ void MainFrame::BindEvents()
    Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
    Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
    Bind(wxEVT_MENU, &MainFrame::OnCollapseChildrenHere, this, ID_CollapseChildrenHere);
+
+   if (m_filterCtrl) {
+      m_filterCtrl->Bind(wxEVT_TEXT, &MainFrame::OnFilterTextChanged, this);
+   }
 }
 
 void MainFrame::OnAgeTimer(wxTimerEvent &event)
@@ -190,6 +204,41 @@ static void CollapseDescendants(wxDataViewCtrl *ctrl, const wxDataViewItem &pare
       CollapseDescendants(ctrl, child, model);
       ctrl->Collapse(child);
    }
+}
+
+void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
+{
+   if (!m_treeModel)
+      return;
+
+   wxString filterText = event.GetString();
+   m_treeModel->SetFilter(filterText);
+
+   if (!m_treeCtrl)
+      return;
+
+   // Defer expand/collapse until the view refreshes after model reset
+   std::shared_ptr<SensorTreeModel> model = m_treeModel;
+   wxDataViewCtrl *ctrl                   = m_treeCtrl;
+   wxString captureFilter                 = filterText;
+
+   CallAfter([ctrl, model, captureFilter]() {
+      if (!ctrl || !model)
+         return;
+
+      wxDataViewItem root;
+      if (captureFilter.IsEmpty()) {
+         // Collapse everything back when clearing the filter
+         wxDataViewItemArray rootChildren;
+         model->GetChildren(root, rootChildren);
+         for (const wxDataViewItem &child : rootChildren) {
+            CollapseDescendants(ctrl, child, model.get());
+            ctrl->Collapse(child);
+         }
+      } else {
+         ExpandDescendants(ctrl, root, model.get());
+      }
+   });
 }
 
 void MainFrame::OnExpandAll(wxCommandEvent &event)

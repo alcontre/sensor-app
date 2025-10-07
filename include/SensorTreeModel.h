@@ -21,6 +21,10 @@ class SensorTreeModel : public wxDataViewModel
    void AddDataSample(const std::vector<std::string> &path, const DataValue &value);
    void AddDataSample(const SensorData &data);
 
+   // Filtering support
+   void SetFilter(const wxString &filterText);
+   const wxString &GetFilter() const { return m_filter; }
+
    // wxDataViewModel interface
    virtual unsigned int GetColumnCount() const override;
    virtual wxString GetColumnType(unsigned int col) const override;
@@ -34,7 +38,7 @@ class SensorTreeModel : public wxDataViewModel
    virtual unsigned int GetChildren(const wxDataViewItem &parent, wxDataViewItemArray &array) const override;
 
    // Helper methods
-   Node *FindOrCreatePath(const std::vector<std::string> &path);
+   Node *FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged);
    void RefreshElapsedTimes();
 
    // Column definitions
@@ -48,8 +52,13 @@ class SensorTreeModel : public wxDataViewModel
 
  private:
    std::vector<std::unique_ptr<Node>> m_rootNodes;
+   wxString m_filter;
+   wxString m_filterLower;
 
    // Helper methods for item management
    Node *GetNodeFromItem(const wxDataViewItem &item) const;
    wxDataViewItem CreateItemFromNode(Node *node) const;
+   bool IsNodeVisible(const Node *node) const;
+   bool NodeMatchesFilter(const Node *node) const;
+   bool HasVisibleChildren(const Node *node) const;
 };

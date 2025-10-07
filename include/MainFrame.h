@@ -23,6 +23,7 @@ class MainFrame : public wxFrame
    void OnExit(wxCommandEvent &event);
    void OnAbout(wxCommandEvent &event);
    void OnToggleDataGenerator(wxCommandEvent &event);
+   void OnFilterTextChanged(wxCommandEvent &event);
 
    void CreateMenuBar();
    void SetupStatusBar();
@@ -45,6 +46,7 @@ class MainFrame : public wxFrame
 
    // UI components
    wxDataViewCtrl *m_treeCtrl;
+   wxTextCtrl *m_filterCtrl;
    std::shared_ptr<SensorTreeModel> m_treeModel;
    wxTimer m_ageTimer;
    std::atomic<bool> m_generationActive;

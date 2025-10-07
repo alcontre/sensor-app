@@ -11,6 +11,22 @@ SensorTreeModel::~SensorTreeModel()
 {
 }
 
+void SensorTreeModel::SetFilter(const wxString &filterText)
+{
+   wxString trimmed = filterText;
+   trimmed.Trim(true);
+   trimmed.Trim(false);
+
+   wxString lower = trimmed.Lower();
+   if (lower == m_filterLower)
+      return;
+
+   m_filter      = trimmed;
+   m_filterLower = lower;
+
+   Cleared();
+}
+
 Node *SensorTreeModel::AddRootNode(std::unique_ptr<Node> node)
 {
    if (!node)
@@ -35,12 +51,17 @@ void SensorTreeModel::ClearAll()
 
 void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value)
 {
-   Node *node = FindOrCreatePath(path);
+   bool structureChanged = false;
+   Node *node            = FindOrCreatePath(path, structureChanged);
    if (node) {
       node->SetValue(value);
       // Notify that the item changed
       wxDataViewItem item = CreateItemFromNode(node);
       ItemChanged(item);
+   }
+
+   if (structureChanged && !m_filterLower.IsEmpty()) {
+      Cleared();
    }
 }
 
@@ -49,8 +70,10 @@ void SensorTreeModel::AddDataSample(const SensorData &data)
    AddDataSample(data.GetPath(), data.GetValue());
 }
 
-Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path)
+Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged)
 {
+   structureChanged = false;
+
    if (path.empty())
       return nullptr;
 
@@ -69,6 +92,7 @@ Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path)
       auto newRoot     = std::make_unique<Node>(path[0]);
       current          = newRoot.get();
       newlyCreatedRoot = current;
+      structureChanged = true;
       // Insert in sorted order
       auto insertIt = std::lower_bound(m_rootNodes.begin(), m_rootNodes.end(), newRoot,
           [](const std::unique_ptr<Node> &a, const std::unique_ptr<Node> &b) {
@@ -92,6 +116,7 @@ Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path)
          const bool parentWasLeaf = current->IsLeaf();
          auto newChild            = std::make_unique<Node>(path[i]);
          child                    = current->AddChild(std::move(newChild));
+         structureChanged         = true;
          pendingEdges.push_back({current, child, parentWasLeaf});
       }
       current = child;
@@ -175,7 +200,7 @@ bool SensorTreeModel::IsContainer(const wxDataViewItem &item) const
       return true;
 
    Node *node = GetNodeFromItem(item);
-   return node && !node->IsLeaf();
+   return node && HasVisibleChildren(node);
 }
 
 bool SensorTreeModel::HasContainerColumns(const wxDataViewItem &item) const
@@ -189,17 +214,25 @@ unsigned int SensorTreeModel::GetChildren(const wxDataViewItem &parent, wxDataVi
 
    if (!parentNode) {
       // Root level - return root nodes
+      unsigned int count = 0;
       for (const auto &node : m_rootNodes) {
-         array.Add(CreateItemFromNode(node.get()));
+         if (IsNodeVisible(node.get())) {
+            array.Add(CreateItemFromNode(node.get()));
+            ++count;
+         }
       }
-      return m_rootNodes.size();
+      return count;
    } else {
       // Return children of the specified parent
       const auto &children = parentNode->GetChildren();
+      unsigned int count   = 0;
       for (const auto &child : children) {
-         array.Add(CreateItemFromNode(child.get()));
+         if (IsNodeVisible(child.get())) {
+            array.Add(CreateItemFromNode(child.get()));
+            ++count;
+         }
       }
-      return children.size();
+      return count;
    }
 }
 
@@ -229,4 +262,44 @@ Node *SensorTreeModel::GetNodeFromItem(const wxDataViewItem &item) const
 wxDataViewItem SensorTreeModel::CreateItemFromNode(Node *node) const
 {
    return wxDataViewItem(static_cast<void *>(node));
+}
+
+bool SensorTreeModel::IsNodeVisible(const Node *node) const
+{
+   if (!node)
+      return false;
+
+   if (m_filterLower.IsEmpty())
+      return true;
+
+   if (NodeMatchesFilter(node))
+      return true;
+
+   for (const auto &child : node->GetChildren()) {
+      if (IsNodeVisible(child.get()))
+         return true;
+   }
+
+   return false;
+}
+
+bool SensorTreeModel::NodeMatchesFilter(const Node *node) const
+{
+   if (!node || m_filterLower.IsEmpty())
+      return true;
+
+   wxString path = wxString::FromUTF8(node->GetFullPath("/").c_str());
+   return path.Lower().Find(m_filterLower) != wxNOT_FOUND;
+}
+
+bool SensorTreeModel::HasVisibleChildren(const Node *node) const
+{
+   if (!node)
+      return false;
+
+   for (const auto &child : node->GetChildren()) {
+      if (IsNodeVisible(child.get()))
+         return true;
+   }
+   return false;
 }
