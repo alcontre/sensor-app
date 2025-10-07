@@ -3,6 +3,9 @@
 #include "SensorDataGenerator.h"
 #include "SensorTreeModel.h"
 
+#include <functional>
+#include <vector>
+
 MainFrame::MainFrame() :
     wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
         wxDefaultPosition, wxSize(800, 600)),
@@ -208,36 +211,41 @@ static void CollapseDescendants(wxDataViewCtrl *ctrl, const wxDataViewItem &pare
 
 void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
 {
-   if (!m_treeModel)
+   if (!m_treeModel || !m_treeCtrl)
       return;
+
+   std::vector<Node *> expandedNodes;
+   std::function<void(const wxDataViewItem &)> collectExpanded;
+   collectExpanded = [&](const wxDataViewItem &parent) {
+      wxDataViewItemArray children;
+      m_treeModel->GetChildren(parent, children);
+      for (const wxDataViewItem &child : children) {
+         if (m_treeCtrl->IsExpanded(child)) {
+            expandedNodes.push_back(static_cast<Node *>(child.GetID()));
+         }
+         collectExpanded(child);
+      }
+   };
+   collectExpanded(wxDataViewItem(nullptr));
 
    wxString filterText = event.GetString();
    m_treeModel->SetFilter(filterText);
 
-   if (!m_treeCtrl)
-      return;
-
-   // Defer expand/collapse until the view refreshes after model reset
    std::shared_ptr<SensorTreeModel> model = m_treeModel;
-   wxDataViewCtrl *ctrl                   = m_treeCtrl;
-   wxString captureFilter                 = filterText;
+   wxDataViewCtrl *ctrl                  = m_treeCtrl;
 
-   CallAfter([ctrl, model, captureFilter]() {
+   CallAfter([ctrl, model, expandedNodes]() {
       if (!ctrl || !model)
          return;
 
-      wxDataViewItem root;
-      if (captureFilter.IsEmpty()) {
-         // Collapse everything back when clearing the filter
-         wxDataViewItemArray rootChildren;
-         model->GetChildren(root, rootChildren);
-         for (const wxDataViewItem &child : rootChildren) {
-            CollapseDescendants(ctrl, child, model.get());
-            ctrl->Collapse(child);
-         }
-      } else {
-         ExpandDescendants(ctrl, root, model.get());
+      ctrl->Freeze();
+      for (Node *node : expandedNodes) {
+         if (!node)
+            continue;
+         wxDataViewItem item(static_cast<void *>(node));
+         ctrl->Expand(item);
       }
+      ctrl->Thaw();
    });
 }
 
