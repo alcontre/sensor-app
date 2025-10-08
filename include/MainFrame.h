@@ -33,6 +33,7 @@ class MainFrame : public wxFrame
       // Connection
       ID_ConnectYes,
       ID_ConnectNo,
+      ID_NewMessage,
 
       // Context menu entries
       ID_ExpandAllHere,
@@ -58,7 +59,7 @@ class MainFrame : public wxFrame
    wxTimer m_ageTimer;
    std::atomic<bool> m_generationActive;
    SensorDataGenerator *m_dataThread;
-   uint64_t m_samplesReceived;
+   uint64_t m_messagesReceived;
    std::unique_ptr<SensorDataJsonWriter> m_dataRecorder;
    // Track the item for which a context menu is opened
    wxDataViewItem m_contextItem;
@@ -69,6 +70,7 @@ class MainFrame : public wxFrame
    void OnAgeTimer(wxTimerEvent &event);
    void OnSensorData(wxCommandEvent &event);
    void OnConnectionStatus(wxThreadEvent &event);
+   void OnNewMessage(wxThreadEvent &event);
    void OnExpandAll(wxCommandEvent &event);
    void OnItemActivated(wxDataViewEvent &event);
    void OnItemContextMenu(wxDataViewEvent &event);

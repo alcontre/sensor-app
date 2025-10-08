@@ -16,7 +16,7 @@ MainFrame::MainFrame() :
     m_ageTimer(this, ID_AgeTimer),
     m_generationActive(false),
     m_dataThread(nullptr),
-    m_samplesReceived(0)
+    m_messagesReceived(0)
 {
    CreateMenuBar();
    SetupStatusBar();
@@ -84,9 +84,9 @@ void MainFrame::SetupStatusBar()
    if (GetStatusBar())
       GetStatusBar()->SetStatusWidths(2, widths);
 
-   // Ensure left is blank and initialize right with zero samples received
+   // Ensure left is blank and initialize right with zero messages received
    SetStatusText("", 0);
-   SetStatusText(wxString::Format("Samples received: %zu", (unsigned long long)m_samplesReceived), 1);
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 1);
 }
 
 void MainFrame::OnExit(wxCommandEvent &event)
@@ -185,6 +185,7 @@ void MainFrame::BindEvents()
 
    Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectYes);
    Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectNo);
+   Bind(wxEVT_THREAD, &MainFrame::OnNewMessage, this, ID_NewMessage);
 }
 
 void MainFrame::OnAgeTimer(wxTimerEvent &event)
@@ -203,9 +204,6 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
    m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue());
    if (m_dataRecorder)
       m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue());
-   ++m_samplesReceived;
-   // Update message count on the right side
-   SetStatusText(wxString::Format("Samples received: %zu", (unsigned long long)m_samplesReceived), 1);
 }
 
 // Recursively expand all descendants of a given item
@@ -346,6 +344,13 @@ void MainFrame::OnConnectionStatus(wxThreadEvent &event)
       default:
          break;
    }
+}
+
+void MainFrame::OnNewMessage(wxThreadEvent &event)
+{
+   (void)event; // no payload expected
+   ++m_messagesReceived;
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 1);
 }
 
 void MainFrame::UpdateNetworkIndicator(const wxColour &colour, const wxString &tooltip)

@@ -104,10 +104,17 @@ void SensorDataTestGenerator::QueueRandomDataSample()
 
    auto *evt = new SensorDataEvent(def.path, value);
    wxQueueEvent(m_target, evt);
+   QueueNewMessageEvent();
 }
 
 void SensorDataTestGenerator::QueueConnectionEvent(bool connected)
 {
    auto *evt = new wxThreadEvent(wxEVT_THREAD, connected ? MainFrame::ID_ConnectYes : MainFrame::ID_ConnectNo);
+   wxQueueEvent(m_target, evt);
+}
+
+void SensorDataTestGenerator::QueueNewMessageEvent()
+{
+   auto *evt = new wxThreadEvent(wxEVT_THREAD, MainFrame::ID_NewMessage);
    wxQueueEvent(m_target, evt);
 }
