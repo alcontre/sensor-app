@@ -1,7 +1,6 @@
 #pragma once
 #include "SensorTreeModel.h"
 
-#include "SensorDataEvent.h"
 #include "SensorDataJsonWriter.h"
 
 #include <wx/dataview.h>
@@ -11,7 +10,6 @@
 
 #include <atomic>
 #include <memory>
-#include <vector>
 
 class SensorDataGenerator;
 class SensorDataTestGenerator;
