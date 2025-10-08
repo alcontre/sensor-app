@@ -42,9 +42,6 @@ wxThread::ExitCode SensorDataTestGenerator::Entry()
 
 void SensorDataTestGenerator::QueueRandomDataSample()
 {
-   if (!m_target)
-      return;
-
    struct SampleDefinition
    {
       std::vector<std::string> path;
