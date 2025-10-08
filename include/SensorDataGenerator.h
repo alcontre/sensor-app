@@ -12,18 +12,15 @@ class wxEvtHandler;
 class SensorDataGenerator : public wxThread
 {
  public:
-   SensorDataGenerator(std::atomic<bool> &activeFlag, wxEvtHandler *target);
+   SensorDataGenerator(wxEvtHandler *target);
    virtual ~SensorDataGenerator() = default;
 
  protected:
    virtual ExitCode Entry() override;
 
  private:
-   void QueueRandomDataSample();
    void QueueConnectionEvent(bool connected);
    void QueueNewMessageEvent();
 
-   std::atomic<bool> &m_activeFlag;
    wxEvtHandler *m_target;
-   std::mt19937 m_rng;
 };

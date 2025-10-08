@@ -2,6 +2,7 @@
 
 #include "SensorDataEvent.h"
 #include "SensorDataGenerator.h"
+#include "SensorDataTestGenerator.h"
 #include "SensorTreeModel.h"
 
 #include <functional>
@@ -16,6 +17,7 @@ MainFrame::MainFrame() :
     m_ageTimer(this, ID_AgeTimer),
     m_generationActive(false),
     m_dataThread(nullptr),
+    m_testDataThread(nullptr),
     m_messagesReceived(0)
 {
    CreateMenuBar();
@@ -25,7 +27,7 @@ MainFrame::MainFrame() :
 
    m_dataRecorder = std::make_unique<SensorDataJsonWriter>();
 
-   m_dataThread = new SensorDataGenerator(m_generationActive, this);
+   m_dataThread = new SensorDataGenerator(this);
    if (m_dataThread) {
       if (m_dataThread->Run() != wxTHREAD_NO_ERROR) {
          delete m_dataThread;
@@ -33,6 +35,17 @@ MainFrame::MainFrame() :
       } else {
          // Detached thread will self-delete; clear local pointer to avoid dangling access
          m_dataThread = nullptr;
+      }
+   }
+
+   m_testDataThread = new SensorDataTestGenerator(m_generationActive, this);
+   if (m_testDataThread) {
+      if (m_testDataThread->Run() != wxTHREAD_NO_ERROR) {
+         delete m_testDataThread;
+         m_testDataThread = nullptr;
+      } else {
+         // Detached thread will self-delete; clear local pointer to avoid dangling access
+         m_testDataThread = nullptr;
       }
    }
 
@@ -375,7 +388,7 @@ void MainFrame::StartDataTestGeneration()
    }
 }
 
-void MainFrame::StopDataGeneration()
+void MainFrame::StopDataTestGeneration()
 {
    if (!m_generationActive.load())
       return;
@@ -394,14 +407,14 @@ void MainFrame::OnToggleDataGenerator(wxCommandEvent &event)
 {
    // Toggle based on current atomic flag
    if (m_generationActive.load())
-      StopDataGeneration();
+      StopDataTestGeneration();
    else
       StartDataTestGeneration();
 }
 
 void MainFrame::OnClose(wxCloseEvent &event)
 {
-   StopDataGeneration();
+   StopDataTestGeneration();
    if (m_ageTimer.IsRunning()) {
       m_ageTimer.Stop();
    }

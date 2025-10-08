@@ -14,6 +14,7 @@
 #include <vector>
 
 class SensorDataGenerator;
+class SensorDataTestGenerator;
 
 class MainFrame : public wxFrame
 {
@@ -59,6 +60,7 @@ class MainFrame : public wxFrame
    wxTimer m_ageTimer;
    std::atomic<bool> m_generationActive;
    SensorDataGenerator *m_dataThread;
+   SensorDataTestGenerator *m_testDataThread;
    uint64_t m_messagesReceived;
    std::unique_ptr<SensorDataJsonWriter> m_dataRecorder;
    // Track the item for which a context menu is opened
@@ -78,5 +80,5 @@ class MainFrame : public wxFrame
    void OnCollapseChildrenHere(wxCommandEvent &event);
    void OnCollapseAll(wxCommandEvent &event);
    void StartDataTestGeneration();
-   void StopDataGeneration();
+   void StopDataTestGeneration();
 };
