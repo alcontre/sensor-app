@@ -1,4 +1,5 @@
 #include "MainFrame.h"
+
 #include "SensorDataEvent.h"
 #include "SensorDataGenerator.h"
 #include "SensorTreeModel.h"
@@ -11,6 +12,7 @@ MainFrame::MainFrame() :
         wxDefaultPosition, wxSize(800, 600)),
     m_treeCtrl(nullptr),
     m_filterCtrl(nullptr),
+    m_networkIndicator(nullptr),
     m_ageTimer(this, ID_AgeTimer),
     m_generationActive(false),
     m_dataThread(nullptr),
@@ -38,7 +40,7 @@ MainFrame::MainFrame() :
    StartDataGeneration();
    m_ageTimer.Start(250);
 
-   wxString status = "Welcome to Sensor Tree Viewer! Auto data generation started.";
+   wxString status = "";
    if (m_dataRecorder && m_dataRecorder->IsOpen()) {
       status += " Logging enabled.";
    } else {
@@ -126,12 +128,28 @@ void MainFrame::CreateSensorTreeView()
    m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100);
 
    // Layout
-   wxBoxSizer *sizer         = new wxBoxSizer(wxVERTICAL);
-   wxBoxSizer *filterSizer   = new wxBoxSizer(wxHORIZONTAL);
+   wxBoxSizer *sizer       = new wxBoxSizer(wxVERTICAL);
+   wxBoxSizer *filterSizer = new wxBoxSizer(wxHORIZONTAL);
+
+   // Add a connection indicator
+   m_networkIndicator = new wxPanel(panel, wxID_ANY, wxDefaultPosition, wxSize(20, 20), wxSIMPLE_BORDER);
+
+   // Determine an aesthetically pleasing size based on default button height
+   const auto default_btn_size = wxButton::GetDefaultSize(this);
+   const wxSize indicator_size(default_btn_size.y, default_btn_size.y);
+   m_networkIndicator->SetMinSize(indicator_size);
+   m_networkIndicator->SetMaxSize(indicator_size);
+
+   UpdateNetworkIndicator(*wxYELLOW, "Network idle");
+
+   // TODO - click connect indicator to reset connection (not implemented)
+
+   // Add sensor filter text box
    wxStaticText *filterLabel = new wxStaticText(panel, wxID_ANY, "Filter:");
    m_filterCtrl              = new wxTextCtrl(panel, wxID_ANY);
    m_filterCtrl->SetHint("Type to filter sensors...");
 
+   filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
    filterSizer->Add(filterLabel, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
    filterSizer->Add(m_filterCtrl, 1, wxEXPAND);
 
@@ -164,6 +182,9 @@ void MainFrame::BindEvents()
    if (m_filterCtrl) {
       m_filterCtrl->Bind(wxEVT_TEXT, &MainFrame::OnFilterTextChanged, this);
    }
+
+   Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectYes);
+   Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectNo);
 }
 
 void MainFrame::OnAgeTimer(wxTimerEvent &event)
@@ -232,7 +253,7 @@ void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
    m_treeModel->SetFilter(filterText);
 
    std::shared_ptr<SensorTreeModel> model = m_treeModel;
-   wxDataViewCtrl *ctrl                  = m_treeCtrl;
+   wxDataViewCtrl *ctrl                   = m_treeCtrl;
 
    CallAfter([ctrl, model, expandedNodes]() {
       if (!ctrl || !model)
@@ -311,6 +332,27 @@ void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
    // Also collapse the starting item itself if it's a valid node
    if (m_contextItem.IsOk())
       m_treeCtrl->Collapse(m_contextItem);
+}
+
+void MainFrame::OnConnectionStatus(wxThreadEvent &event)
+{
+   switch (event.GetId()) {
+      case ID_ConnectYes:
+         UpdateNetworkIndicator(*wxGREEN, "Network connected");
+         break;
+      case ID_ConnectNo:
+         UpdateNetworkIndicator(*wxYELLOW, "Network idle");
+         break;
+      default:
+         break;
+   }
+}
+
+void MainFrame::UpdateNetworkIndicator(const wxColour &colour, const wxString &tooltip)
+{
+   m_networkIndicator->SetBackgroundColour(colour);
+   m_networkIndicator->SetToolTip(tooltip);
+   m_networkIndicator->Refresh();
 }
 
 void MainFrame::StartDataGeneration()

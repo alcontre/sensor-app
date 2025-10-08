@@ -1,4 +1,6 @@
 #include "SensorDataTestGenerator.h"
+
+#include "MainFrame.h"
 #include "SensorDataEvent.h"
 
 #include <wx/event.h>
@@ -16,14 +18,25 @@ SensorDataTestGenerator::SensorDataTestGenerator(std::atomic<bool> &activeFlag, 
 
 wxThread::ExitCode SensorDataTestGenerator::Entry()
 {
-   while (true) {
-      if (m_activeFlag.load()) {
+   QueueConnectionEvent(m_activeFlag.load());
+
+   bool lastActive = m_activeFlag.load();
+   while (!TestDestroy()) {
+      bool isActive = m_activeFlag.load();
+      if (isActive != lastActive) {
+         QueueConnectionEvent(isActive);
+         lastActive = isActive;
+      }
+
+      if (isActive) {
          QueueRandomDataSample();
          wxThread::Sleep(1000);
       } else {
          wxThread::Sleep(100);
       }
    }
+
+   QueueConnectionEvent(false);
    return static_cast<ExitCode>(0);
 }
 
@@ -90,5 +103,11 @@ void SensorDataTestGenerator::QueueRandomDataSample()
    }
 
    auto *evt = new SensorDataEvent(def.path, value);
+   wxQueueEvent(m_target, evt);
+}
+
+void SensorDataTestGenerator::QueueConnectionEvent(bool connected)
+{
+   auto *evt = new wxThreadEvent(wxEVT_THREAD, connected ? MainFrame::ID_ConnectYes : MainFrame::ID_ConnectNo);
    wxQueueEvent(m_target, evt);
 }

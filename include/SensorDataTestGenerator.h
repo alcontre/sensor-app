@@ -20,6 +20,7 @@ class SensorDataTestGenerator : public wxThread
 
  private:
    void QueueRandomDataSample();
+   void QueueConnectionEvent(bool connected);
 
    std::atomic<bool> &m_activeFlag;
    wxEvtHandler *m_target;
