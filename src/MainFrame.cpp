@@ -37,7 +37,7 @@ MainFrame::MainFrame() :
    }
 
    // Start automatic data generation (will run indefinitely)
-   StartDataGeneration();
+   StartDataTestGeneration();
    m_ageTimer.Start(250);
 
    wxString status = "";
@@ -360,7 +360,7 @@ void MainFrame::UpdateNetworkIndicator(const wxColour &colour, const wxString &t
    m_networkIndicator->Refresh();
 }
 
-void MainFrame::StartDataGeneration()
+void MainFrame::StartDataTestGeneration()
 {
    if (m_generationActive.load())
       return;
@@ -396,7 +396,7 @@ void MainFrame::OnToggleDataGenerator(wxCommandEvent &event)
    if (m_generationActive.load())
       StopDataGeneration();
    else
-      StartDataGeneration();
+      StartDataTestGeneration();
 }
 
 void MainFrame::OnClose(wxCloseEvent &event)

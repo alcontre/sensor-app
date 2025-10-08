@@ -77,6 +77,6 @@ class MainFrame : public wxFrame
    void OnExpandAllHere(wxCommandEvent &event);
    void OnCollapseChildrenHere(wxCommandEvent &event);
    void OnCollapseAll(wxCommandEvent &event);
-   void StartDataGeneration();
+   void StartDataTestGeneration();
    void StopDataGeneration();
 };
