@@ -16,30 +16,30 @@
 class SensorDataGenerator;
 class SensorDataTestGenerator;
 
+enum
+{
+   ID_Hello = 1,
+   ID_AgeTimer,
+
+   // Menu bar
+   ID_ExpandAll,
+   ID_CollapseAll,
+   ID_ToggleDataGen,
+
+   // Connection
+   ID_ConnectYes,
+   ID_ConnectNo,
+   ID_NewMessage,
+
+   // Context menu entries
+   ID_ExpandAllHere,
+   ID_CollapseChildrenHere
+};
+
 class MainFrame : public wxFrame
 {
  public:
    MainFrame();
-
-   enum
-   {
-      ID_Hello = 1,
-      ID_AgeTimer,
-
-      // Menu bar
-      ID_ExpandAll,
-      ID_CollapseAll,
-      ID_ToggleDataGen,
-
-      // Connection
-      ID_ConnectYes,
-      ID_ConnectNo,
-      ID_NewMessage,
-
-      // Context menu entries
-      ID_ExpandAllHere,
-      ID_CollapseChildrenHere
-   };
 
  private:
    void OnExit(wxCommandEvent &event);

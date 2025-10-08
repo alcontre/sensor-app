@@ -348,12 +348,14 @@ void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
 void MainFrame::OnConnectionStatus(wxThreadEvent &event)
 {
    switch (event.GetId()) {
-      case ID_ConnectYes:
+      case ID_ConnectYes: {
          UpdateNetworkIndicator(*wxGREEN, "Network connected");
          break;
-      case ID_ConnectNo:
+      }
+      case ID_ConnectNo: {
          UpdateNetworkIndicator(*wxYELLOW, "Network idle");
          break;
+      }
       default:
          break;
    }

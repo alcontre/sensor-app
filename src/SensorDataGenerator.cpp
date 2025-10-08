@@ -16,14 +16,14 @@ SensorDataGenerator::SensorDataGenerator(wxEvtHandler *target) :
 
 void SensorDataGenerator::QueueNewMessageEvent()
 {
-   auto *evt = new wxThreadEvent(wxEVT_THREAD, MainFrame::ID_NewMessage);
+   auto *evt = new wxThreadEvent(wxEVT_THREAD, ID_NewMessage);
    wxQueueEvent(m_target, evt);
 }
 
 void SensorDataGenerator::QueueConnectionEvent(bool connected)
 {
    auto *evt = new wxThreadEvent(wxEVT_THREAD,
-       connected ? MainFrame::ID_ConnectYes : MainFrame::ID_ConnectNo);
+       connected ? ID_ConnectYes : ID_ConnectNo);
    wxQueueEvent(m_target, evt);
 }
 
