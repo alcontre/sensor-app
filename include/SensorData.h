@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 // Simple value holder that can contain either a number or string
@@ -78,10 +79,7 @@ class DataValue
 
  private:
    e_Type m_type;
-   std::int64_t m_integerValue;
-   double m_doubleValue;
-   bool m_boolValue;
-   std::string m_stringValue;
+   std::variant<std::int64_t, bool, double, std::string> m_value;
 };
 
 // Individual data sample with hierarchical path

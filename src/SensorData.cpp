@@ -6,15 +6,13 @@
 // DataValue implementation
 DataValue::DataValue(std::int64_t value) :
     m_type(INTEGER),
-    m_integerValue(static_cast<std::int64_t>(value)),
-    m_doubleValue(0.0)
+    m_value(static_cast<std::int64_t>(value))
 {
 }
 
 DataValue::DataValue(std::uint64_t value) :
     m_type(INTEGER),
-    m_integerValue(static_cast<std::int64_t>(value)),
-    m_doubleValue(0.0)
+    m_value(static_cast<std::int64_t>(value))
 {
 }
 
@@ -30,32 +28,25 @@ DataValue::DataValue(std::uint32_t value) :
 
 DataValue::DataValue(bool value) :
     m_type(BOOLEAN),
-    m_integerValue(0),
-    m_doubleValue(0.0),
-    m_boolValue(value)
+    m_value(value)
 {
 }
 
 DataValue::DataValue(double value) :
     m_type(DOUBLE),
-    m_integerValue(0),
-    m_doubleValue(value)
+    m_value(value)
 {
 }
 
 DataValue::DataValue(const std::string &value) :
     m_type(STRING),
-    m_integerValue(0),
-    m_doubleValue(0.0),
-    m_stringValue(value)
+    m_value(value)
 {
 }
 
 DataValue::DataValue(const char *value) :
     m_type(STRING),
-    m_integerValue(0),
-    m_doubleValue(0.0),
-    m_stringValue(value)
+    m_value(std::string(value))
 {
 }
 
@@ -104,22 +95,22 @@ std::int64_t DataValue::GetInteger() const
 {
    if (m_type != INTEGER)
       throw std::runtime_error("DataValue is not integer");
-   return m_integerValue;
+   return std::get<std::int64_t>(m_value);
 }
 
 double DataValue::GetDouble() const
 {
    if (m_type != DOUBLE)
       throw std::runtime_error("DataValue is not double");
-   return m_doubleValue;
+   return std::get<double>(m_value);
 }
 
 double DataValue::GetNumeric() const
 {
    if (m_type == DOUBLE)
-      return m_doubleValue;
+      return std::get<double>(m_value);
    if (m_type == INTEGER)
-      return static_cast<double>(m_integerValue);
+      return static_cast<double>(std::get<std::int64_t>(m_value));
 
    throw std::runtime_error("DataValue is not numeric");
 }
@@ -128,28 +119,32 @@ const std::string &DataValue::GetString() const
 {
    if (m_type != STRING)
       throw std::runtime_error("DataValue is not string");
-   return m_stringValue;
+   return std::get<std::string>(m_value);
 }
 
 bool DataValue::GetBoolean() const
 {
    if (m_type != BOOLEAN)
       throw std::runtime_error("DataValue is not boolean");
-   return m_boolValue;
+   return std::get<bool>(m_value);
 }
 
 std::string DataValue::GetDisplayString() const
 {
-   if (m_type == INTEGER) {
-      return std::to_string(m_integerValue);
-   } else if (m_type == DOUBLE) {
-      std::ostringstream oss;
-      oss << m_doubleValue;
-      return oss.str();
-   } else if (m_type == BOOLEAN) {
-      return m_boolValue ? "true" : "false";
-   } else {
-      return m_stringValue;
+   switch (m_type) {
+      case INTEGER:
+         return std::to_string(std::get<std::int64_t>(m_value));
+      case DOUBLE: {
+         std::ostringstream oss;
+         oss << std::get<double>(m_value);
+         return oss.str();
+      }
+      case BOOLEAN:
+         return std::get<bool>(m_value) ? "true" : "false";
+      case STRING:
+         return std::get<std::string>(m_value);
+      default:
+         return {};
    }
 }
 
