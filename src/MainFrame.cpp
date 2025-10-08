@@ -53,7 +53,7 @@ MainFrame::MainFrame() :
 void MainFrame::CreateMenuBar()
 {
    wxMenu *menuFile = new wxMenu;
-   menuFile->Append(ID_Hello, "&About...\tCtrl-A",
+   menuFile->Append(ID_Hello, "&About...",
        "Show information about this application");
    // Toggle automatic data generator
    menuFile->AppendCheckItem(ID_ToggleDataGen, "&Toggle Data Generator",
