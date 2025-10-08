@@ -8,7 +8,7 @@
 class DataValue
 {
  public:
-   enum Type
+   enum e_Type
    {
       INTEGER,
       BOOLEAN,
@@ -27,7 +27,7 @@ class DataValue
    DataValue(const char *value);
 
    // Type checking
-   Type GetType() const { return m_type; }
+   e_Type GetType() const { return m_type; }
    bool IsInteger() const { return m_type == INTEGER; }
    bool IsDouble() const { return m_type == DOUBLE; }
    bool IsString() const { return m_type == STRING; }
@@ -77,7 +77,7 @@ class DataValue
    std::string GetDisplayString() const;
 
  private:
-   Type m_type;
+   e_Type m_type;
    std::int64_t m_integerValue;
    double m_doubleValue;
    bool m_boolValue;
