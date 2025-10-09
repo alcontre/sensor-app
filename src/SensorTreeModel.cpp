@@ -12,6 +12,15 @@ SensorTreeModel::~SensorTreeModel()
 {
 }
 
+void SensorTreeModel::SetShowFailuresOnly(bool showFailuresOnly)
+{
+   if (m_showFailuresOnly == showFailuresOnly)
+      return;
+
+   m_showFailuresOnly = showFailuresOnly;
+   Cleared();
+}
+
 void SensorTreeModel::SetFilter(const wxString &filterText)
 {
    wxString trimmed = filterText;
@@ -328,18 +337,26 @@ bool SensorTreeModel::IsNodeVisible(const Node *node) const
    if (!node)
       return false;
 
+   bool childVisible = false;
+   for (const auto &child : node->GetChildren()) {
+      if (IsNodeVisible(child.get())) {
+         childVisible = true;
+      }
+   }
+
+   if (m_showFailuresOnly) {
+      const bool nodeFailed = node->HasValue() && node->IsFailed();
+      if (!nodeFailed && !childVisible)
+         return false;
+   }
+
    if (m_filterLower.IsEmpty())
       return true;
 
    if (NodeMatchesFilter(node))
       return true;
 
-   for (const auto &child : node->GetChildren()) {
-      if (IsNodeVisible(child.get()))
-         return true;
-   }
-
-   return false;
+   return childVisible;
 }
 
 bool SensorTreeModel::NodeMatchesFilter(const Node *node) const

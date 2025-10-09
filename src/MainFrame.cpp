@@ -13,6 +13,7 @@ MainFrame::MainFrame() :
         wxDefaultPosition, wxSize(800, 600)),
     m_treeCtrl(nullptr),
     m_filterCtrl(nullptr),
+    m_showFailuresOnlyCheck(nullptr),
     m_networkIndicator(nullptr),
     m_ageTimer(this, ID_AgeTimer),
     m_generationActive(false),
@@ -160,12 +161,16 @@ void MainFrame::CreateSensorTreeView()
 
    // TODO - click connect indicator to reset connection (not implemented)
 
+   m_showFailuresOnlyCheck = new wxCheckBox(panel, wxID_ANY, "Show failures only");
+   m_showFailuresOnlyCheck->SetToolTip("Only display sensors currently in a failed state");
+
    // Add sensor filter text box
    wxStaticText *filterLabel = new wxStaticText(panel, wxID_ANY, "Filter:");
    m_filterCtrl              = new wxTextCtrl(panel, wxID_ANY);
    m_filterCtrl->SetHint("Type to filter sensors...");
 
    filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
+   filterSizer->Add(m_showFailuresOnlyCheck, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
    filterSizer->Add(filterLabel, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
    filterSizer->Add(m_filterCtrl, 1, wxEXPAND);
 
@@ -197,6 +202,10 @@ void MainFrame::BindEvents()
 
    if (m_filterCtrl) {
       m_filterCtrl->Bind(wxEVT_TEXT, &MainFrame::OnFilterTextChanged, this);
+   }
+
+   if (m_showFailuresOnlyCheck) {
+      m_showFailuresOnlyCheck->Bind(wxEVT_CHECKBOX, &MainFrame::OnShowFailuresOnly, this);
    }
 
    Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectYes);
@@ -267,6 +276,45 @@ void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
 
    wxString filterText = event.GetString();
    m_treeModel->SetFilter(filterText);
+
+   std::shared_ptr<SensorTreeModel> model = m_treeModel;
+   wxDataViewCtrl *ctrl                   = m_treeCtrl;
+
+   CallAfter([ctrl, model, expandedNodes]() {
+      if (!ctrl || !model)
+         return;
+
+      ctrl->Freeze();
+      for (Node *node : expandedNodes) {
+         if (!node)
+            continue;
+         wxDataViewItem item(static_cast<void *>(node));
+         ctrl->Expand(item);
+      }
+      ctrl->Thaw();
+   });
+}
+
+void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
+{
+   if (!m_treeModel || !m_treeCtrl)
+      return;
+
+   std::vector<Node *> expandedNodes;
+   std::function<void(const wxDataViewItem &)> collectExpanded;
+   collectExpanded = [&](const wxDataViewItem &parent) {
+      wxDataViewItemArray children;
+      m_treeModel->GetChildren(parent, children);
+      for (const wxDataViewItem &child : children) {
+         if (m_treeCtrl->IsExpanded(child)) {
+            expandedNodes.push_back(static_cast<Node *>(child.GetID()));
+         }
+         collectExpanded(child);
+      }
+   };
+   collectExpanded(wxDataViewItem(nullptr));
+
+   m_treeModel->SetShowFailuresOnly(event.IsChecked());
 
    std::shared_ptr<SensorTreeModel> model = m_treeModel;
    wxDataViewCtrl *ctrl                   = m_treeCtrl;

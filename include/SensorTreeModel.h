@@ -28,6 +28,8 @@ class SensorTreeModel : public wxDataViewModel
    // Filtering support
    void SetFilter(const wxString &filterText);
    const wxString &GetFilter() const { return m_filter; }
+   void SetShowFailuresOnly(bool showFailuresOnly);
+   bool IsShowingFailuresOnly() const { return m_showFailuresOnly; }
 
    // wxDataViewModel interface
    virtual unsigned int GetColumnCount() const override;
@@ -62,6 +64,7 @@ class SensorTreeModel : public wxDataViewModel
    std::vector<std::unique_ptr<Node>> m_rootNodes;
    wxString m_filter;
    wxString m_filterLower;
+   bool m_showFailuresOnly = false;
 
    // Helper methods for item management
    Node *GetNodeFromItem(const wxDataViewItem &item) const;

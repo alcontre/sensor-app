@@ -44,6 +44,7 @@ class MainFrame : public wxFrame
    void OnAbout(wxCommandEvent &event);
    void OnToggleDataGenerator(wxCommandEvent &event);
    void OnFilterTextChanged(wxCommandEvent &event);
+   void OnShowFailuresOnly(wxCommandEvent &event);
 
    void CreateMenuBar();
    void SetupStatusBar();
@@ -54,6 +55,7 @@ class MainFrame : public wxFrame
    wxDataViewCtrl *m_treeCtrl;
    wxTextCtrl *m_filterCtrl;
    wxPanel *m_networkIndicator;
+   wxCheckBox *m_showFailuresOnlyCheck;
    std::shared_ptr<SensorTreeModel> m_treeModel;
    wxTimer m_ageTimer;
    std::atomic<bool> m_generationActive;
