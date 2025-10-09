@@ -137,8 +137,11 @@ void MainFrame::CreateSensorTreeView()
 
    // Add columns
    m_treeCtrl->AppendTextColumn("Name", SensorTreeModel::COL_NAME, wxDATAVIEW_CELL_INERT, 200);
-   m_treeCtrl->AppendTextColumn("Value", SensorTreeModel::COL_VALUE, wxDATAVIEW_CELL_INERT, 120);
-   m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100);
+   m_treeCtrl->AppendTextColumn("Value", SensorTreeModel::COL_VALUE, wxDATAVIEW_CELL_INERT, 120, wxALIGN_CENTER); // value display
+   m_treeCtrl->AppendTextColumn("Lower Threshold", SensorTreeModel::COL_LOWER_THRESHOLD, wxDATAVIEW_CELL_INERT, 130, wxALIGN_CENTER);
+   m_treeCtrl->AppendTextColumn("Upper Threshold", SensorTreeModel::COL_UPPER_THRESHOLD, wxDATAVIEW_CELL_INERT, 130, wxALIGN_CENTER);
+   m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100, wxALIGN_CENTER);
+   m_treeCtrl->AppendTextColumn("Status", SensorTreeModel::COL_STATUS, wxDATAVIEW_CELL_INERT, 90, wxALIGN_CENTER);
 
    // Layout
    wxBoxSizer *sizer       = new wxBoxSizer(wxVERTICAL);
@@ -214,9 +217,11 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
    if (!sampleEvent || !m_treeModel)
       return;
 
-   m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue());
+   m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
+       sampleEvent->GetLowerThreshold(), sampleEvent->GetUpperThreshold(), sampleEvent->IsFailed());
    if (m_dataRecorder)
-      m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue());
+      m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
+          sampleEvent->GetLowerThreshold(), sampleEvent->GetUpperThreshold(), sampleEvent->IsFailed());
 }
 
 // Recursively expand all descendants of a given item

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <utility>
 
 SensorTreeModel::SensorTreeModel()
 {
@@ -49,12 +50,15 @@ void SensorTreeModel::ClearAll()
    Cleared();
 }
 
-void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value)
+void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
+    std::optional<DataValue> lowerThreshold,
+    std::optional<DataValue> upperThreshold,
+    bool failed)
 {
    bool structureChanged = false;
    Node *node            = FindOrCreatePath(path, structureChanged);
    if (node) {
-      node->SetValue(value);
+      node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
       // Notify that the item changed
       wxDataViewItem item = CreateItemFromNode(node);
       ItemChanged(item);
@@ -166,10 +170,31 @@ void SensorTreeModel::GetValue(wxVariant &variant, const wxDataViewItem &item, u
             variant = wxString("");
          }
          break;
+      case COL_LOWER_THRESHOLD:
+         if (node->HasValue() && node->GetLowerThreshold()) {
+            variant = wxString(node->GetLowerThreshold()->GetDisplayString());
+         } else {
+            variant = wxString("");
+         }
+         break;
+      case COL_UPPER_THRESHOLD:
+         if (node->HasValue() && node->GetUpperThreshold()) {
+            variant = wxString(node->GetUpperThreshold()->GetDisplayString());
+         } else {
+            variant = wxString("");
+         }
+         break;
       case COL_ELAPSED:
          if (node->HasValue()) {
             double seconds = node->GetSecondsSinceUpdate();
             variant        = wxString::Format("%.1f", seconds);
+         } else {
+            variant = wxString("");
+         }
+         break;
+      case COL_STATUS:
+         if (node->HasValue()) {
+            variant = wxString(node->IsFailed() ? "Failed" : "OK");
          } else {
             variant = wxString("");
          }
@@ -187,14 +212,28 @@ bool SensorTreeModel::SetValue(const wxVariant &variant, const wxDataViewItem &i
 
 bool SensorTreeModel::GetAttr(const wxDataViewItem &item, unsigned int col, wxDataViewItemAttr &attr) const
 {
+   Node *node = GetNodeFromItem(item);
+   if (!node)
+      return false;
+
+   if (node->HasValue() && node->IsFailed()) {
+      switch (col) {
+         case COL_VALUE:
+         case COL_LOWER_THRESHOLD:
+         case COL_UPPER_THRESHOLD:
+         case COL_STATUS:
+            attr.SetBold(true);
+            attr.SetColour(*wxRED);
+            return true;
+         default:
+            break;
+      }
+   }
+
    if (m_filterLower.IsEmpty())
       return false;
 
    if (col != COL_NAME)
-      return false;
-
-   Node *node = GetNodeFromItem(item);
-   if (!node)
       return false;
 
    if (!NodeMatchesHighlightFilter(node))

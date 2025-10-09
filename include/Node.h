@@ -4,6 +4,7 @@
 #include <chrono>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -32,7 +33,13 @@ class Node
    // Data value (leaf nodes can have values)
    bool HasValue() const { return m_hasValue; }
    const DataValue &GetValue() const { return m_value; }
-   void SetValue(const DataValue &value);
+   const std::optional<DataValue> &GetLowerThreshold() const { return m_lowerThreshold; }
+   const std::optional<DataValue> &GetUpperThreshold() const { return m_upperThreshold; }
+   bool IsFailed() const { return m_failed; }
+   void SetValue(const DataValue &value,
+       std::optional<DataValue> lowerThreshold = std::nullopt,
+       std::optional<DataValue> upperThreshold = std::nullopt,
+       bool failed                             = false);
    void ClearValue();
    double GetSecondsSinceUpdate() const;
 
@@ -54,6 +61,9 @@ class Node
 
    bool m_hasValue;
    DataValue m_value;
+   std::optional<DataValue> m_lowerThreshold;
+   std::optional<DataValue> m_upperThreshold;
+   bool m_failed;
    std::chrono::steady_clock::time_point m_lastUpdate;
 
    void GetAllDescendantsRecursive(std::vector<Node *> &nodes) const;

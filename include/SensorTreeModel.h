@@ -4,6 +4,7 @@
 #include <wx/dataview.h>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 // Custom data model for the hierarchical sensor tree
@@ -18,7 +19,10 @@ class SensorTreeModel : public wxDataViewModel
    void ClearAll();
 
    // Add data samples and build tree structure
-   void AddDataSample(const std::vector<std::string> &path, const DataValue &value);
+   void AddDataSample(const std::vector<std::string> &path, const DataValue &value,
+       std::optional<DataValue> lowerThreshold = std::nullopt,
+       std::optional<DataValue> upperThreshold = std::nullopt,
+       bool failed                             = false);
    void AddDataSample(const SensorData &data);
 
    // Filtering support
@@ -47,7 +51,10 @@ class SensorTreeModel : public wxDataViewModel
    {
       COL_NAME = 0,
       COL_VALUE,
+      COL_LOWER_THRESHOLD,
+      COL_UPPER_THRESHOLD,
       COL_ELAPSED,
+      COL_STATUS,
       COL_COUNT
    };
 

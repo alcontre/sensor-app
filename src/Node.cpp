@@ -9,6 +9,9 @@ Node::Node(const std::string &name, Node *parent) :
     m_parent(parent),
     m_hasValue(false),
     m_value(0.0), // Default constructor for DataValue
+    m_lowerThreshold(std::nullopt),
+    m_upperThreshold(std::nullopt),
+    m_failed(false),
     m_lastUpdate(std::chrono::steady_clock::time_point{})
 {
 }
@@ -39,16 +42,25 @@ Node *Node::FindChild(const std::string &name) const
    return (it != m_children.end()) ? it->get() : nullptr;
 }
 
-void Node::SetValue(const DataValue &value)
+void Node::SetValue(const DataValue &value,
+    std::optional<DataValue> lowerThreshold,
+    std::optional<DataValue> upperThreshold,
+    bool failed)
 {
-   m_value      = value;
-   m_hasValue   = true;
-   m_lastUpdate = std::chrono::steady_clock::now();
+   m_value          = value;
+   m_hasValue       = true;
+   m_lowerThreshold = std::move(lowerThreshold);
+   m_upperThreshold = std::move(upperThreshold);
+   m_failed         = failed;
+   m_lastUpdate     = std::chrono::steady_clock::now();
 }
 
 void Node::ClearValue()
 {
-   m_hasValue   = false;
+   m_hasValue = false;
+   m_lowerThreshold.reset();
+   m_upperThreshold.reset();
+   m_failed     = false;
    m_lastUpdate = std::chrono::steady_clock::time_point{};
 }
 

@@ -3,6 +3,7 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <vector>
 
 static constexpr const char *DEFAULT_LOG_FILE = "sensor_log.json";
 
@@ -32,7 +33,10 @@ bool SensorDataJsonWriter::IsOpen() const
    return m_stream.is_open();
 }
 
-void SensorDataJsonWriter::RecordSample(const std::vector<std::string> &path, const DataValue &value)
+void SensorDataJsonWriter::RecordSample(const std::vector<std::string> &path, const DataValue &value,
+    const std::optional<DataValue> &lowerThreshold,
+    const std::optional<DataValue> &upperThreshold,
+    bool failed)
 {
    if (!m_stream.is_open())
       return;
@@ -68,7 +72,29 @@ void SensorDataJsonWriter::RecordSample(const std::vector<std::string> &path, co
    }
    entry << "],\n";
 
-   entry << "    \"value\": " << FormatValue(value) << '\n';
+   entry << "    \"value\": " << FormatValue(value);
+
+   std::vector<std::string> extraFields;
+   if (lowerThreshold) {
+      extraFields.emplace_back("    \"lower_threshold\": " + FormatValue(*lowerThreshold));
+   }
+   if (upperThreshold) {
+      extraFields.emplace_back("    \"upper_threshold\": " + FormatValue(*upperThreshold));
+   }
+   extraFields.emplace_back(std::string("    \"failed\": ") + (failed ? "true" : "false"));
+
+   if (!extraFields.empty()) {
+      entry << ",\n";
+      for (size_t i = 0; i < extraFields.size(); ++i) {
+         entry << extraFields[i];
+         if (i + 1 < extraFields.size())
+            entry << ",\n";
+         else
+            entry << '\n';
+      }
+   } else {
+      entry << '\n';
+   }
    entry << "  }";
 
    m_stream << entry.str();
