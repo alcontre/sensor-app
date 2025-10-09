@@ -56,7 +56,7 @@ class MainFrame : public wxFrame
    wxTextCtrl *m_filterCtrl;
    wxPanel *m_networkIndicator;
    wxCheckBox *m_showFailuresOnlyCheck;
-   std::shared_ptr<SensorTreeModel> m_treeModel;
+   SensorTreeModel *m_treeModel;
    wxTimer m_ageTimer;
    std::atomic<bool> m_generationActive;
    SensorDataGenerator *m_dataThread;

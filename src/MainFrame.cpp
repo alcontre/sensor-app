@@ -19,7 +19,8 @@ MainFrame::MainFrame() :
     m_generationActive(false),
     m_dataThread(nullptr),
     m_testDataThread(nullptr),
-    m_messagesReceived(0)
+    m_messagesReceived(0),
+    m_treeModel(nullptr)
 {
    CreateMenuBar();
    SetupStatusBar();
@@ -126,7 +127,7 @@ void MainFrame::CreateSensorTreeView()
    wxPanel *panel = new wxPanel(this, wxID_ANY);
 
    // Create the tree model
-   m_treeModel = std::make_shared<SensorTreeModel>();
+   m_treeModel = new SensorTreeModel();
 
    // Create the data view control
    m_treeCtrl = new wxDataViewCtrl(panel, wxID_ANY,
@@ -134,7 +135,8 @@ void MainFrame::CreateSensorTreeView()
        wxDV_MULTIPLE | wxDV_ROW_LINES | wxDV_HORIZ_RULES);
 
    // Associate the model with the control
-   m_treeCtrl->AssociateModel(m_treeModel.get());
+   m_treeCtrl->AssociateModel(m_treeModel);
+   m_treeModel->DecRef();
 
    // Add columns
    m_treeCtrl->AppendTextColumn("Name", SensorTreeModel::COL_NAME, wxDATAVIEW_CELL_INERT, 200);
@@ -277,22 +279,17 @@ void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
    wxString filterText = event.GetString();
    m_treeModel->SetFilter(filterText);
 
-   std::shared_ptr<SensorTreeModel> model = m_treeModel;
-   wxDataViewCtrl *ctrl                   = m_treeCtrl;
+   if (!m_treeCtrl)
+      return;
 
-   CallAfter([ctrl, model, expandedNodes]() {
-      if (!ctrl || !model)
-         return;
-
-      ctrl->Freeze();
-      for (Node *node : expandedNodes) {
-         if (!node)
-            continue;
-         wxDataViewItem item(static_cast<void *>(node));
-         ctrl->Expand(item);
-      }
-      ctrl->Thaw();
-   });
+   m_treeCtrl->Freeze();
+   for (Node *node : expandedNodes) {
+      if (!node)
+         continue;
+      wxDataViewItem item(static_cast<void *>(node));
+      m_treeCtrl->Expand(item);
+   }
+   m_treeCtrl->Thaw();
 }
 
 void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
@@ -316,22 +313,17 @@ void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
 
    m_treeModel->SetShowFailuresOnly(event.IsChecked());
 
-   std::shared_ptr<SensorTreeModel> model = m_treeModel;
-   wxDataViewCtrl *ctrl                   = m_treeCtrl;
+   if (!m_treeCtrl)
+      return;
 
-   CallAfter([ctrl, model, expandedNodes]() {
-      if (!ctrl || !model)
-         return;
-
-      ctrl->Freeze();
-      for (Node *node : expandedNodes) {
-         if (!node)
-            continue;
-         wxDataViewItem item(static_cast<void *>(node));
-         ctrl->Expand(item);
-      }
-      ctrl->Thaw();
-   });
+   m_treeCtrl->Freeze();
+   for (Node *node : expandedNodes) {
+      if (!node)
+         continue;
+      wxDataViewItem item(static_cast<void *>(node));
+      m_treeCtrl->Expand(item);
+   }
+   m_treeCtrl->Thaw();
 }
 
 void MainFrame::OnExpandAll(wxCommandEvent &event)
@@ -341,7 +333,7 @@ void MainFrame::OnExpandAll(wxCommandEvent &event)
 
    // Start from the invisible root
    wxDataViewItem root = wxDataViewItem(NULL);
-   ExpandDescendants(m_treeCtrl, root, m_treeModel.get());
+   ExpandDescendants(m_treeCtrl, root, m_treeModel);
 }
 
 void MainFrame::OnCollapseAll(wxCommandEvent &event)
@@ -350,7 +342,7 @@ void MainFrame::OnCollapseAll(wxCommandEvent &event)
       return;
 
    wxDataViewItem root = wxDataViewItem(NULL);
-   CollapseDescendants(m_treeCtrl, root, m_treeModel.get());
+   CollapseDescendants(m_treeCtrl, root, m_treeModel);
 }
 
 void MainFrame::OnItemActivated(wxDataViewEvent &event)
@@ -383,7 +375,7 @@ void MainFrame::OnExpandAllHere(wxCommandEvent &event)
       return;
 
    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
-   ExpandDescendants(m_treeCtrl, start, m_treeModel.get());
+   ExpandDescendants(m_treeCtrl, start, m_treeModel);
 }
 
 void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
@@ -392,7 +384,7 @@ void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
       return;
 
    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
-   CollapseDescendants(m_treeCtrl, start, m_treeModel.get());
+   CollapseDescendants(m_treeCtrl, start, m_treeModel);
    // Also collapse the starting item itself if it's a valid node
    if (m_contextItem.IsOk())
       m_treeCtrl->Collapse(m_contextItem);
@@ -477,6 +469,7 @@ void MainFrame::OnClose(wxCloseEvent &event)
    if (m_treeCtrl && m_treeModel) {
       // Disassociate model to prevent wxDataViewCtrl from trying to remove notifier
       m_treeCtrl->AssociateModel(nullptr);
+      m_treeModel = nullptr;
    }
 
    m_dataRecorder.reset();
