@@ -237,9 +237,6 @@ static void CollapseDescendants(wxDataViewCtrl *ctrl, const wxDataViewItem &pare
 
 void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
 {
-   if (!m_treeModel || !m_treeCtrl)
-      return;
-
    std::vector<Node *> expandedNodes;
    std::function<void(const wxDataViewItem &)> collectExpanded;
    collectExpanded = [&](const wxDataViewItem &parent) {
@@ -257,9 +254,6 @@ void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
    wxString filterText = event.GetString();
    m_treeModel->SetFilter(filterText);
 
-   if (!m_treeCtrl)
-      return;
-
    m_treeCtrl->Freeze();
    for (Node *node : expandedNodes) {
       if (!node)
@@ -272,9 +266,6 @@ void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
 
 void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
 {
-   if (!m_treeModel || !m_treeCtrl)
-      return;
-
    std::vector<Node *> expandedNodes;
    std::function<void(const wxDataViewItem &)> collectExpanded;
    collectExpanded = [&](const wxDataViewItem &parent) {
@@ -291,9 +282,6 @@ void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
 
    m_treeModel->SetShowFailuresOnly(event.IsChecked());
 
-   if (!m_treeCtrl)
-      return;
-
    m_treeCtrl->Freeze();
    for (Node *node : expandedNodes) {
       if (!node)
@@ -306,9 +294,6 @@ void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
 
 void MainFrame::OnExpandAll(wxCommandEvent &event)
 {
-   if (!m_treeCtrl || !m_treeModel)
-      return;
-
    // Start from the invisible root
    wxDataViewItem root = wxDataViewItem(NULL);
    ExpandDescendants(m_treeCtrl, root, m_treeModel);
@@ -316,18 +301,12 @@ void MainFrame::OnExpandAll(wxCommandEvent &event)
 
 void MainFrame::OnCollapseAll(wxCommandEvent &event)
 {
-   if (!m_treeCtrl || !m_treeModel)
-      return;
-
    wxDataViewItem root = wxDataViewItem(NULL);
    CollapseDescendants(m_treeCtrl, root, m_treeModel);
 }
 
 void MainFrame::OnItemActivated(wxDataViewEvent &event)
 {
-   if (!m_treeCtrl)
-      return;
-
    wxDataViewItem item = event.GetItem();
    if (!item.IsOk())
       return;
@@ -349,18 +328,12 @@ void MainFrame::OnItemContextMenu(wxDataViewEvent &event)
 
 void MainFrame::OnExpandAllHere(wxCommandEvent &event)
 {
-   if (!m_treeCtrl || !m_treeModel)
-      return;
-
    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
    ExpandDescendants(m_treeCtrl, start, m_treeModel);
 }
 
 void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
 {
-   if (!m_treeCtrl || !m_treeModel)
-      return;
-
    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
    CollapseDescendants(m_treeCtrl, start, m_treeModel);
    // Also collapse the starting item itself if it's a valid node
