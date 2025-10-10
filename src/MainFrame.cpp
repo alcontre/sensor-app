@@ -30,25 +30,15 @@ MainFrame::MainFrame() :
    m_dataRecorder = std::make_unique<SensorDataJsonWriter>();
 
    m_dataThread = new SensorDataGenerator(this);
-   if (m_dataThread) {
-      if (m_dataThread->Run() != wxTHREAD_NO_ERROR) {
-         delete m_dataThread;
-         m_dataThread = nullptr;
-      } else {
-         // Detached thread will self-delete; clear local pointer to avoid dangling access
-         m_dataThread = nullptr;
-      }
+   if (m_dataThread->Run() != wxTHREAD_NO_ERROR) {
+      delete m_dataThread;
+      m_dataThread = nullptr;
    }
 
    m_testDataThread = new SensorDataTestGenerator(m_generationActive, this);
-   if (m_testDataThread) {
-      if (m_testDataThread->Run() != wxTHREAD_NO_ERROR) {
-         delete m_testDataThread;
-         m_testDataThread = nullptr;
-      } else {
-         // Detached thread will self-delete; clear local pointer to avoid dangling access
-         m_testDataThread = nullptr;
-      }
+   if (m_testDataThread->Run() != wxTHREAD_NO_ERROR) {
+      delete m_testDataThread;
+      m_testDataThread = nullptr;
    }
 
    // Start automatic data generation (will run indefinitely)
@@ -56,7 +46,7 @@ MainFrame::MainFrame() :
    m_ageTimer.Start(250);
 
    wxString status = "";
-   if (m_dataRecorder && m_dataRecorder->IsOpen()) {
+   if (m_dataRecorder->IsOpen()) {
       status += " Logging enabled.";
    } else {
       status += " Logging disabled (unable to open log file).";
@@ -90,14 +80,8 @@ void MainFrame::CreateMenuBar()
 
 void MainFrame::SetupStatusBar()
 {
-   // Create a two-field status bar. The left field is stretchable and kept blank.
-   // The right field is used for messages (like sample counts).
+   // Create a two-field status bar; connection info and msg counts
    CreateStatusBar(2);
-
-   // Set widths: left field stretches (-1), right field fixed to 200 pixels
-   int widths[2] = {-1, 200};
-   if (GetStatusBar())
-      GetStatusBar()->SetStatusWidths(2, widths);
 
    // Ensure left is blank and initialize right with zero messages received
    SetStatusText("", 0);
@@ -167,13 +151,11 @@ void MainFrame::CreateSensorTreeView()
    m_showFailuresOnlyCheck->SetToolTip("Only display sensors currently in a failed state");
 
    // Add sensor filter text box
-   wxStaticText *filterLabel = new wxStaticText(panel, wxID_ANY, "Filter:");
-   m_filterCtrl              = new wxTextCtrl(panel, wxID_ANY);
+   m_filterCtrl = new wxTextCtrl(panel, wxID_ANY);
    m_filterCtrl->SetHint("Type to filter sensors...");
 
    filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
    filterSizer->Add(m_showFailuresOnlyCheck, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
-   filterSizer->Add(filterLabel, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
    filterSizer->Add(m_filterCtrl, 1, wxEXPAND);
 
    sizer->Add(filterSizer, 0, wxEXPAND | wxALL, 5);
@@ -202,13 +184,9 @@ void MainFrame::BindEvents()
    Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
    Bind(wxEVT_MENU, &MainFrame::OnCollapseChildrenHere, this, ID_CollapseChildrenHere);
 
-   if (m_filterCtrl) {
-      m_filterCtrl->Bind(wxEVT_TEXT, &MainFrame::OnFilterTextChanged, this);
-   }
+   m_filterCtrl->Bind(wxEVT_TEXT, &MainFrame::OnFilterTextChanged, this);
 
-   if (m_showFailuresOnlyCheck) {
-      m_showFailuresOnlyCheck->Bind(wxEVT_CHECKBOX, &MainFrame::OnShowFailuresOnly, this);
-   }
+   m_showFailuresOnlyCheck->Bind(wxEVT_CHECKBOX, &MainFrame::OnShowFailuresOnly, this);
 
    Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectYes);
    Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectNo);
