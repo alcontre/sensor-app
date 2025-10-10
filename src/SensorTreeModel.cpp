@@ -43,12 +43,8 @@ Node *SensorTreeModel::AddRootNode(std::unique_ptr<Node> node)
       return nullptr;
 
    Node *rawNode = node.get();
-   // Insert in sorted order
-   auto it = std::lower_bound(m_rootNodes.begin(), m_rootNodes.end(), node,
-       [](const std::unique_ptr<Node> &a, const std::unique_ptr<Node> &b) {
-          return a->GetName() < b->GetName();
-       });
-   m_rootNodes.insert(it, std::move(node));
+   // Insert in order received
+   m_rootNodes.push_back(std::move(node));
    ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(rawNode));
    return rawNode;
 }
@@ -106,12 +102,8 @@ Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path, bo
       current          = newRoot.get();
       newlyCreatedRoot = current;
       structureChanged = true;
-      // Insert in sorted order
-      auto insertIt = std::lower_bound(m_rootNodes.begin(), m_rootNodes.end(), newRoot,
-          [](const std::unique_ptr<Node> &a, const std::unique_ptr<Node> &b) {
-             return a->GetName() < b->GetName();
-          });
-      m_rootNodes.insert(insertIt, std::move(newRoot));
+      // Insert in order received
+      m_rootNodes.push_back(std::move(newRoot));
    }
 
    // Traverse/create the rest of the path

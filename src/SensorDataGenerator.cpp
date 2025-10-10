@@ -1,12 +1,8 @@
 #include "SensorDataGenerator.h"
 
 #include "MainFrame.h"
-#include "SensorDataEvent.h"
 
 #include <wx/event.h>
-
-#include <chrono>
-#include <cstdint>
 
 SensorDataGenerator::SensorDataGenerator(wxEvtHandler *target) :
     wxThread(wxTHREAD_DETACHED),

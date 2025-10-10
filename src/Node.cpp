@@ -23,12 +23,8 @@ Node *Node::AddChild(std::unique_ptr<Node> child)
 
    child->SetParent(this);
    Node *rawChild = child.get();
-   // Insert in sorted order
-   auto it = std::lower_bound(m_children.begin(), m_children.end(), child,
-       [](const std::unique_ptr<Node> &a, const std::unique_ptr<Node> &b) {
-          return a->GetName() < b->GetName();
-       });
-   m_children.insert(it, std::move(child));
+   // Insert in order received
+   m_children.push_back(std::move(child));
    return rawChild;
 }
 
