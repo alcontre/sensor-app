@@ -62,28 +62,31 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
 {
    bool structureChanged = false;
    Node *node            = FindOrCreatePath(path, structureChanged);
-   bool wasFailed        = false;
+   bool wasVisible       = node ? IsNodeVisible(node) : false;
+
    if (node) {
-      wasFailed = node->HasValue() && node->IsFailed();
       node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
    }
 
-   bool requireFullRefresh = false;
-   if (structureChanged && !m_filterLower.IsEmpty()) {
-      requireFullRefresh = true;
-   }
-
-   if (node && m_showFailuresOnly) {
-      const bool isFailed = node->HasValue() && node->IsFailed();
-      if (wasFailed != isFailed) {
-         requireFullRefresh = true;
+   if (structureChanged) {
+      if (!m_filterLower.IsEmpty()) {
+         Cleared();
       }
+      return;
    }
 
-   if (requireFullRefresh) {
-      Cleared();
-   } else if (node) {
-      wxDataViewItem item = CreateItemFromNode(node);
+   if (!node)
+      return;
+
+   bool isVisible = IsNodeVisible(node);
+   wxDataViewItem parentItem = wxDataViewItem(node->GetParent() ? static_cast<void *>(node->GetParent()) : nullptr);
+   wxDataViewItem item       = CreateItemFromNode(node);
+
+   if (wasVisible && !isVisible) {
+      ItemDeleted(parentItem, item);
+   } else if (!wasVisible && isVisible) {
+      ItemAdded(parentItem, item);
+   } else if (isVisible) {
       ItemChanged(item);
    }
 }
