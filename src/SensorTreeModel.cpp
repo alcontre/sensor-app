@@ -62,15 +62,29 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
 {
    bool structureChanged = false;
    Node *node            = FindOrCreatePath(path, structureChanged);
+   bool wasFailed        = false;
    if (node) {
+      wasFailed = node->HasValue() && node->IsFailed();
       node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
-      // Notify that the item changed
-      wxDataViewItem item = CreateItemFromNode(node);
-      ItemChanged(item);
    }
 
+   bool requireFullRefresh = false;
    if (structureChanged && !m_filterLower.IsEmpty()) {
+      requireFullRefresh = true;
+   }
+
+   if (node && m_showFailuresOnly) {
+      const bool isFailed = node->HasValue() && node->IsFailed();
+      if (wasFailed != isFailed) {
+         requireFullRefresh = true;
+      }
+   }
+
+   if (requireFullRefresh) {
       Cleared();
+   } else if (node) {
+      wxDataViewItem item = CreateItemFromNode(node);
+      ItemChanged(item);
    }
 }
 
