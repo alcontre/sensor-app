@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 // Custom data model for the hierarchical sensor tree
@@ -30,6 +31,7 @@ class SensorTreeModel : public wxDataViewModel
    const wxString &GetFilter() const { return m_filter; }
    void SetShowFailuresOnly(bool showFailuresOnly);
    bool IsShowingFailuresOnly() const { return m_showFailuresOnly; }
+   bool IsNodeVisible(const Node *node) const;
 
    // wxDataViewModel interface
    virtual unsigned int GetColumnCount() const override;
@@ -45,7 +47,14 @@ class SensorTreeModel : public wxDataViewModel
    virtual unsigned int GetChildren(const wxDataViewItem &parent, wxDataViewItemArray &array) const override;
 
    // Helper methods
-   Node *FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged);
+   struct CreatedEdge
+   {
+      Node *parent;
+      Node *child;
+      bool parentWasLeaf;
+   };
+
+   Node *FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged, std::vector<CreatedEdge> &createdEdges);
    void RefreshElapsedTimes();
 
    // Column definitions
@@ -65,12 +74,15 @@ class SensorTreeModel : public wxDataViewModel
    wxString m_filter;
    wxString m_filterLower;
    bool m_showFailuresOnly = false;
+   std::unordered_set<const Node *> m_visibleNodes;
 
    // Helper methods for item management
    Node *GetNodeFromItem(const wxDataViewItem &item) const;
    wxDataViewItem CreateItemFromNode(Node *node) const;
-   bool IsNodeVisible(const Node *node) const;
+   bool ShouldNodeBeVisible(const Node *node) const;
    bool NodeMatchesFilter(const Node *node) const;
    bool NodeMatchesHighlightFilter(const Node *node) const;
    bool HasVisibleChildren(const Node *node) const;
+   void CollectVisibleNodes(Node *node, std::vector<Node *> &out) const;
+   void UpdateVisibility(Node *valueChanged, const std::vector<Node *> &forceRefreshParents, bool refreshAllVisible);
 };

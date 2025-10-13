@@ -43,7 +43,7 @@ MainFrame::MainFrame() :
 
    // Start automatic data generation (will run indefinitely)
    // StartDataTestGeneration();
-   m_ageTimer.Start(250);
+   m_ageTimer.Start(50);
 
    wxString status = "";
    if (m_dataRecorder->IsOpen()) {
@@ -259,6 +259,8 @@ void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
       if (!node)
          continue;
       wxDataViewItem item(static_cast<void *>(node));
+      if (!m_treeModel->IsNodeVisible(node))
+         continue;
       m_treeCtrl->Expand(item);
    }
    m_treeCtrl->Thaw();
@@ -287,6 +289,8 @@ void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
       if (!node)
          continue;
       wxDataViewItem item(static_cast<void *>(node));
+      if (!m_treeModel->IsNodeVisible(node))
+         continue;
       m_treeCtrl->Expand(item);
    }
    m_treeCtrl->Thaw();

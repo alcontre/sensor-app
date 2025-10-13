@@ -18,7 +18,7 @@ void SensorTreeModel::SetShowFailuresOnly(bool showFailuresOnly)
       return;
 
    m_showFailuresOnly = showFailuresOnly;
-   Cleared();
+   UpdateVisibility(nullptr, {}, true);
 }
 
 void SensorTreeModel::SetFilter(const wxString &filterText)
@@ -34,7 +34,7 @@ void SensorTreeModel::SetFilter(const wxString &filterText)
    m_filter      = trimmed;
    m_filterLower = lower;
 
-   Cleared();
+   UpdateVisibility(nullptr, {}, true);
 }
 
 Node *SensorTreeModel::AddRootNode(std::unique_ptr<Node> node)
@@ -45,13 +45,14 @@ Node *SensorTreeModel::AddRootNode(std::unique_ptr<Node> node)
    Node *rawNode = node.get();
    // Insert in order received
    m_rootNodes.push_back(std::move(node));
-   ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(rawNode));
+   UpdateVisibility(nullptr, {}, false);
    return rawNode;
 }
 
 void SensorTreeModel::ClearAll()
 {
    m_rootNodes.clear();
+   m_visibleNodes.clear();
    Cleared();
 }
 
@@ -60,35 +61,24 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
     std::optional<DataValue> upperThreshold,
     bool failed)
 {
+   std::vector<CreatedEdge> createdEdges;
    bool structureChanged = false;
-   Node *node            = FindOrCreatePath(path, structureChanged);
-   bool wasVisible       = node ? IsNodeVisible(node) : false;
-
-   if (node) {
-      node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
-   }
-
-   if (structureChanged) {
-      if (!m_filterLower.IsEmpty()) {
-         Cleared();
-      }
-      return;
-   }
+   Node *node            = FindOrCreatePath(path, structureChanged, createdEdges);
 
    if (!node)
       return;
 
-   bool isVisible = IsNodeVisible(node);
-   wxDataViewItem parentItem = wxDataViewItem(node->GetParent() ? static_cast<void *>(node->GetParent()) : nullptr);
-   wxDataViewItem item       = CreateItemFromNode(node);
+   node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
 
-   if (wasVisible && !isVisible) {
-      ItemDeleted(parentItem, item);
-   } else if (!wasVisible && isVisible) {
-      ItemAdded(parentItem, item);
-   } else if (isVisible) {
-      ItemChanged(item);
+   std::vector<Node *> parentsToRefresh;
+   parentsToRefresh.reserve(createdEdges.size());
+   for (const auto &edge : createdEdges) {
+      if (edge.parent && edge.parentWasLeaf) {
+         parentsToRefresh.push_back(edge.parent);
+      }
    }
+
+   UpdateVisibility(node, parentsToRefresh, false);
 }
 
 void SensorTreeModel::AddDataSample(const SensorData &data)
@@ -96,18 +86,18 @@ void SensorTreeModel::AddDataSample(const SensorData &data)
    AddDataSample(data.GetPath(), data.GetValue());
 }
 
-Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged)
+Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged, std::vector<CreatedEdge> &createdEdges)
 {
    structureChanged = false;
+   createdEdges.clear();
 
    if (path.empty())
       return nullptr;
 
    // Find or create root node
-   Node *current          = nullptr;
-   Node *newlyCreatedRoot = nullptr;
-   auto it                = std::find_if(m_rootNodes.begin(), m_rootNodes.end(),
-                      [&path](const std::unique_ptr<Node> &node) {
+   Node *current = nullptr;
+   auto it       = std::find_if(m_rootNodes.begin(), m_rootNodes.end(),
+             [&path](const std::unique_ptr<Node> &node) {
           return node->GetName() == path[0];
        });
 
@@ -117,21 +107,13 @@ Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path, bo
       // Create new root node
       auto newRoot     = std::make_unique<Node>(path[0]);
       current          = newRoot.get();
-      newlyCreatedRoot = current;
       structureChanged = true;
       // Insert in order received
       m_rootNodes.push_back(std::move(newRoot));
+      createdEdges.push_back({nullptr, current, false});
    }
 
    // Traverse/create the rest of the path
-   struct PendingEdge
-   {
-      Node *parent;
-      Node *child;
-      bool parentWasLeaf;
-   };
-   std::vector<PendingEdge> pendingEdges;
-
    for (size_t i = 1; i < path.size(); ++i) {
       Node *child = current->FindChild(path[i]);
       if (!child) {
@@ -139,22 +121,9 @@ Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path, bo
          auto newChild            = std::make_unique<Node>(path[i]);
          child                    = current->AddChild(std::move(newChild));
          structureChanged         = true;
-         pendingEdges.push_back({current, child, parentWasLeaf});
+         createdEdges.push_back({current, child, parentWasLeaf});
       }
       current = child;
-   }
-
-   if (newlyCreatedRoot) {
-      ItemAdded(wxDataViewItem(nullptr), CreateItemFromNode(newlyCreatedRoot));
-   }
-
-   for (const auto &edge : pendingEdges) {
-      wxDataViewItem parentItem = edge.parent ? CreateItemFromNode(edge.parent) : wxDataViewItem(nullptr);
-      wxDataViewItem childItem  = CreateItemFromNode(edge.child);
-      ItemAdded(parentItem, childItem);
-      if (edge.parentWasLeaf) {
-         ItemChanged(parentItem);
-      }
    }
 
    return current;
@@ -319,7 +288,9 @@ void SensorTreeModel::RefreshElapsedTimes()
       if (!node)
          return;
 
-      ItemChanged(CreateItemFromNode(node));
+      if (IsNodeVisible(node)) {
+         ItemChanged(CreateItemFromNode(node));
+      }
       for (const auto &child : node->GetChildren()) {
          refresh(child.get());
       }
@@ -341,14 +312,14 @@ wxDataViewItem SensorTreeModel::CreateItemFromNode(Node *node) const
    return wxDataViewItem(static_cast<void *>(node));
 }
 
-bool SensorTreeModel::IsNodeVisible(const Node *node) const
+bool SensorTreeModel::ShouldNodeBeVisible(const Node *node) const
 {
    if (!node)
       return false;
 
    bool childVisible = false;
    for (const auto &child : node->GetChildren()) {
-      if (IsNodeVisible(child.get())) {
+      if (ShouldNodeBeVisible(child.get())) {
          childVisible = true;
       }
    }
@@ -396,4 +367,119 @@ bool SensorTreeModel::HasVisibleChildren(const Node *node) const
          return true;
    }
    return false;
+}
+
+bool SensorTreeModel::IsNodeVisible(const Node *node) const
+{
+   return node && m_visibleNodes.find(node) != m_visibleNodes.end();
+}
+
+void SensorTreeModel::CollectVisibleNodes(Node *node, std::vector<Node *> &out) const
+{
+   if (!node)
+      return;
+
+   if (ShouldNodeBeVisible(node)) {
+      out.push_back(node);
+   }
+
+   for (const auto &child : node->GetChildren()) {
+      CollectVisibleNodes(child.get(), out);
+   }
+}
+
+void SensorTreeModel::UpdateVisibility(Node *valueChanged, const std::vector<Node *> &forceRefreshParents, bool refreshAllVisible)
+{
+   std::vector<Node *> newVisibleList;
+   newVisibleList.reserve(m_visibleNodes.size() + 8);
+   for (const auto &root : m_rootNodes) {
+      CollectVisibleNodes(root.get(), newVisibleList);
+   }
+
+   std::unordered_set<const Node *> newVisibleSet;
+   newVisibleSet.reserve(newVisibleList.size());
+   for (Node *node : newVisibleList) {
+      newVisibleSet.insert(node);
+   }
+
+   std::vector<Node *> removedNodes;
+   removedNodes.reserve(m_visibleNodes.size());
+   for (const Node *node : m_visibleNodes) {
+      if (!newVisibleSet.count(node)) {
+         removedNodes.push_back(const_cast<Node *>(node));
+      }
+   }
+
+   std::sort(removedNodes.begin(), removedNodes.end(),
+       [](Node *lhs, Node *rhs) {
+          return lhs->GetDepth() > rhs->GetDepth();
+       });
+
+   for (Node *node : removedNodes) {
+      m_visibleNodes.erase(node);
+      wxDataViewItem parentItem = node->GetParent() ? CreateItemFromNode(node->GetParent()) : wxDataViewItem(nullptr);
+      ItemDeleted(parentItem, CreateItemFromNode(node));
+   }
+
+   std::vector<Node *> addedNodes;
+   addedNodes.reserve(newVisibleList.size());
+   for (Node *node : newVisibleList) {
+      if (!m_visibleNodes.count(node)) {
+         addedNodes.push_back(node);
+      }
+   }
+
+   std::sort(addedNodes.begin(), addedNodes.end(),
+       [](Node *lhs, Node *rhs) {
+          return lhs->GetDepth() < rhs->GetDepth();
+       });
+
+   for (Node *node : addedNodes) {
+      m_visibleNodes.insert(node);
+      wxDataViewItem parentItem = node->GetParent() ? CreateItemFromNode(node->GetParent()) : wxDataViewItem(nullptr);
+      ItemAdded(parentItem, CreateItemFromNode(node));
+   }
+
+   std::unordered_set<const Node *> addedSet;
+   addedSet.reserve(addedNodes.size());
+   for (Node *node : addedNodes) {
+      addedSet.insert(node);
+   }
+
+   if (valueChanged && newVisibleSet.count(valueChanged) && !addedSet.count(valueChanged)) {
+      ItemChanged(CreateItemFromNode(valueChanged));
+   }
+
+   std::unordered_set<const Node *> refreshed;
+   refreshed.reserve(forceRefreshParents.size());
+   for (Node *parent : forceRefreshParents) {
+      if (!parent)
+         continue;
+      if (!newVisibleSet.count(parent))
+         continue;
+      if (addedSet.count(parent))
+         continue;
+      if (refreshed.count(parent))
+         continue;
+
+      ItemChanged(CreateItemFromNode(parent));
+      refreshed.insert(parent);
+   }
+
+   if (refreshAllVisible) {
+      for (Node *node : newVisibleList) {
+         if (!newVisibleSet.count(node))
+            continue;
+         if (!m_visibleNodes.count(node))
+            continue;
+         if (addedSet.count(node))
+            continue;
+         if (refreshed.count(node))
+            continue;
+
+         ItemChanged(CreateItemFromNode(node));
+      }
+   }
+
+   m_visibleNodes = std::move(newVisibleSet);
 }
