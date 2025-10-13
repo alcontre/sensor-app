@@ -37,25 +37,6 @@ void SensorTreeModel::SetFilter(const wxString &filterText)
    UpdateVisibility(nullptr, {}, true);
 }
 
-Node *SensorTreeModel::AddRootNode(std::unique_ptr<Node> node)
-{
-   if (!node)
-      return nullptr;
-
-   Node *rawNode = node.get();
-   // Insert in order received
-   m_rootNodes.push_back(std::move(node));
-   UpdateVisibility(nullptr, {}, false);
-   return rawNode;
-}
-
-void SensorTreeModel::ClearAll()
-{
-   m_rootNodes.clear();
-   m_visibleNodes.clear();
-   Cleared();
-}
-
 void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
     std::optional<DataValue> lowerThreshold,
     std::optional<DataValue> upperThreshold,

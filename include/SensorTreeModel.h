@@ -16,9 +16,6 @@ class SensorTreeModel : public wxDataViewModel
    virtual ~SensorTreeModel();
 
    // Data management
-   Node *AddRootNode(std::unique_ptr<Node> node);
-   void ClearAll();
-
    // Add data samples and build tree structure
    void AddDataSample(const std::vector<std::string> &path, const DataValue &value,
        std::optional<DataValue> lowerThreshold = std::nullopt,
