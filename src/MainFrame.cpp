@@ -483,9 +483,7 @@ void MainFrame::RotateLogFile(const wxString &reason)
       wxLogError("Unable to open log file '" + logFile + "'.");
    }
 
-   SetStatusText("", 0);
    SetStatusText(logStatus, 1);
-   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
 }
 
 void MainFrame::CloseLogFile(const wxString &reason)
@@ -493,9 +491,7 @@ void MainFrame::CloseLogFile(const wxString &reason)
    m_dataRecorder.reset();
    m_currentLogFile.clear();
 
-   SetStatusText("", 0);
    SetStatusText("Current log: (no active log)", 1);
-   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
 }
 
 void MainFrame::OnToggleDataGenerator(wxCommandEvent &event)
