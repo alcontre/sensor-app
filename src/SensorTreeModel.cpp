@@ -138,11 +138,6 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
    }
 }
 
-void SensorTreeModel::AddDataSample(const SensorData &data)
-{
-   AddDataSample(data.GetPath(), data.GetValue());
-}
-
 Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged, std::vector<CreatedEdge> &createdEdges)
 {
    structureChanged = false;

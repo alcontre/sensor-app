@@ -18,7 +18,6 @@ class SensorTreeModel : public wxDataViewModel
        std::optional<DataValue> lowerThreshold = std::nullopt,
        std::optional<DataValue> upperThreshold = std::nullopt,
        bool failed                             = false);
-   void AddDataSample(const SensorData &data);
 
    void SetFilter(const wxString &filterText);
    const wxString &GetFilter() const { return m_filter; }
