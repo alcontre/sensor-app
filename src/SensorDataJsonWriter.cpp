@@ -5,10 +5,8 @@
 #include <sstream>
 #include <vector>
 
-static constexpr const char *DEFAULT_LOG_FILE = "sensor_log.json";
-
 SensorDataJsonWriter::SensorDataJsonWriter() :
-    SensorDataJsonWriter(DEFAULT_LOG_FILE)
+    SensorDataJsonWriter(GenerateTimestampedFilename())
 {
 }
 
@@ -21,6 +19,25 @@ SensorDataJsonWriter::SensorDataJsonWriter(const std::string &filePath) :
       m_stream << "{\"data\":[";
       m_stream.flush();
    }
+}
+
+std::string SensorDataJsonWriter::GenerateTimestampedFilename()
+{
+   const auto now   = std::chrono::system_clock::now();
+   const auto timeT = std::chrono::system_clock::to_time_t(now);
+#if defined(_WIN32)
+   std::tm tmBuf;
+   localtime_s(&tmBuf, &timeT);
+   const std::tm *timeInfo = &tmBuf;
+#else
+   std::tm tmBuf;
+   localtime_r(&timeT, &tmBuf);
+   const std::tm *timeInfo = &tmBuf;
+#endif
+
+   std::ostringstream oss;
+   oss << std::put_time(timeInfo, "%Y%m%d_%H%M%S") << "_sensor.json";
+   return oss.str();
 }
 
 SensorDataJsonWriter::~SensorDataJsonWriter()

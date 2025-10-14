@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <memory>
+#include <string>
 #include <unordered_set>
 
 class SensorDataGenerator;
@@ -32,7 +33,10 @@ enum
 
    // Context menu entries
    ID_ExpandAllHere,
-   ID_CollapseChildrenHere
+   ID_CollapseChildrenHere,
+
+   // Controls
+   ID_RotateLog
 };
 
 class MainFrame : public wxFrame
@@ -57,6 +61,7 @@ class MainFrame : public wxFrame
    wxTextCtrl *m_filterCtrl;
    wxPanel *m_networkIndicator;
    wxCheckBox *m_showFailuresOnlyCheck;
+   wxButton *m_rotateLogButton;
    SensorTreeModel *m_treeModel;
    wxTimer m_ageTimer;
    std::atomic<bool> m_generationActive;
@@ -64,6 +69,8 @@ class MainFrame : public wxFrame
    SensorDataTestGenerator *m_testDataThread;
    uint64_t m_messagesReceived;
    std::unique_ptr<SensorDataJsonWriter> m_dataRecorder;
+   std::string m_currentLogFile;
+   bool m_isNetworkConnected;
    // Track the item for which a context menu is opened
    wxDataViewItem m_contextItem;
 
@@ -82,10 +89,12 @@ class MainFrame : public wxFrame
    void OnCollapseAll(wxCommandEvent &event);
    void OnItemExpanded(wxDataViewEvent &event);
    void OnItemCollapsed(wxDataViewEvent &event);
+   void OnRotateLog(wxCommandEvent &event);
    void StartDataTestGeneration();
    void StopDataTestGeneration();
    void RestoreExpansionState();
    void PruneExpansionSubtree(Node *node, bool includeRoot);
+   void RotateLogFile(const wxString &reason = wxString());
 
    std::unordered_set<const Node *> m_expandedNodes;
 };

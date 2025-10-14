@@ -18,6 +18,8 @@ class SensorDataJsonWriter
 
    bool IsOpen() const;
 
+   static std::string GenerateTimestampedFilename();
+
    void RecordSample(const std::vector<std::string> &path, const DataValue &value,
        const std::optional<DataValue> &lowerThreshold = std::nullopt,
        const std::optional<DataValue> &upperThreshold = std::nullopt,

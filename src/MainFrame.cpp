@@ -16,19 +16,22 @@ MainFrame::MainFrame() :
     m_filterCtrl(nullptr),
     m_showFailuresOnlyCheck(nullptr),
     m_networkIndicator(nullptr),
+    m_rotateLogButton(nullptr),
+    m_treeModel(nullptr),
     m_ageTimer(this, ID_AgeTimer),
     m_generationActive(false),
     m_dataThread(nullptr),
     m_testDataThread(nullptr),
     m_messagesReceived(0),
-    m_treeModel(nullptr)
+    m_currentLogFile(),
+    m_isNetworkConnected(false)
 {
    CreateMenuBar();
    SetupStatusBar();
    CreateSensorTreeView();
    BindEvents();
 
-   m_dataRecorder = std::make_unique<SensorDataJsonWriter>();
+   RotateLogFile("Logging started.");
 
    m_dataThread = new SensorDataGenerator(this);
    if (m_dataThread->Run() != wxTHREAD_NO_ERROR) {
@@ -45,15 +48,6 @@ MainFrame::MainFrame() :
    // Start automatic data generation (will run indefinitely)
    // StartDataTestGeneration();
    m_ageTimer.Start(50);
-
-   wxString status = "";
-   if (m_dataRecorder->IsOpen()) {
-      status += " Logging enabled.";
-   } else {
-      status += " Logging disabled (unable to open log file).";
-   }
-   // Put welcome/status messages on the right status field
-   SetStatusText(status, 1);
 }
 
 void MainFrame::CreateMenuBar()
@@ -145,8 +139,10 @@ void MainFrame::CreateSensorTreeView()
    m_networkIndicator->SetMaxSize(indicator_size);
 
    UpdateNetworkIndicator(*wxYELLOW, "Network idle");
-
    // TODO - click connect indicator to reset connection (not implemented)
+
+   m_rotateLogButton = new wxButton(panel, ID_RotateLog, "Rotate Log");
+   m_rotateLogButton->SetToolTip("Finish the current log file and start a new one");
 
    m_showFailuresOnlyCheck = new wxCheckBox(panel, wxID_ANY, "Show failures only");
    m_showFailuresOnlyCheck->SetToolTip("Only display sensors currently in a failed state");
@@ -156,6 +152,7 @@ void MainFrame::CreateSensorTreeView()
    m_filterCtrl->SetHint("Type to filter sensors...");
 
    filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
+   filterSizer->Add(m_rotateLogButton, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
    filterSizer->Add(m_showFailuresOnlyCheck, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
    filterSizer->Add(m_filterCtrl, 1, wxEXPAND);
 
@@ -182,6 +179,7 @@ void MainFrame::BindEvents()
    Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &MainFrame::OnItemActivated, this);
    Bind(wxEVT_DATAVIEW_ITEM_EXPANDED, &MainFrame::OnItemExpanded, this);
    Bind(wxEVT_DATAVIEW_ITEM_COLLAPSED, &MainFrame::OnItemCollapsed, this);
+   Bind(wxEVT_BUTTON, &MainFrame::OnRotateLog, this, ID_RotateLog);
    // Context menu for items
    Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
    Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
@@ -332,18 +330,18 @@ void MainFrame::OnExpandAll(wxCommandEvent &event)
    wxDataViewItem root = wxDataViewItem(NULL);
    ExpandDescendants(m_treeCtrl, root, m_treeModel);
 
-    m_expandedNodes.clear();
-    std::function<void(const wxDataViewItem &)> recordExpanded = [&](const wxDataViewItem &parent) {
-       wxDataViewItemArray children;
-       m_treeModel->GetChildren(parent, children);
-       for (const wxDataViewItem &child : children) {
-          Node *node = static_cast<Node *>(child.GetID());
-          if (node)
-             m_expandedNodes.insert(node);
-          recordExpanded(child);
-       }
-    };
-    recordExpanded(root);
+   m_expandedNodes.clear();
+   std::function<void(const wxDataViewItem &)> recordExpanded = [&](const wxDataViewItem &parent) {
+      wxDataViewItemArray children;
+      m_treeModel->GetChildren(parent, children);
+      for (const wxDataViewItem &child : children) {
+         Node *node = static_cast<Node *>(child.GetID());
+         if (node)
+            m_expandedNodes.insert(node);
+         recordExpanded(child);
+      }
+   };
+   recordExpanded(root);
 }
 
 void MainFrame::OnCollapseAll(wxCommandEvent &event)
@@ -392,14 +390,26 @@ void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
    }
 }
 
+void MainFrame::OnRotateLog(wxCommandEvent &event)
+{
+   (void)event;
+   RotateLogFile("Log rotated manually.");
+}
+
 void MainFrame::OnConnectionStatus(wxThreadEvent &event)
 {
    switch (event.GetId()) {
       case ID_ConnectYes: {
+         const bool wasConnected = m_isNetworkConnected;
+         m_isNetworkConnected    = true;
          UpdateNetworkIndicator(*wxGREEN, "Network connected");
+         if (!wasConnected) {
+            RotateLogFile("Network connected; log rotated.");
+         }
          break;
       }
       case ID_ConnectNo: {
+         m_isNetworkConnected = false;
          UpdateNetworkIndicator(*wxYELLOW, "Network idle");
          break;
       }
@@ -450,6 +460,35 @@ void MainFrame::StopDataTestGeneration()
       if (mi)
          mi->Check(false);
    }
+}
+
+void MainFrame::RotateLogFile(const wxString &reason)
+{
+   if (m_dataRecorder) {
+      m_dataRecorder.reset();
+   }
+
+   m_currentLogFile = SensorDataJsonWriter::GenerateTimestampedFilename();
+   m_dataRecorder   = std::make_unique<SensorDataJsonWriter>(m_currentLogFile);
+
+   wxString status;
+   if (!reason.IsEmpty()) {
+      status = reason;
+   }
+
+   const wxString logFile = wxString::FromUTF8(m_currentLogFile.c_str());
+   if (!status.IsEmpty()) {
+      status += ' ';
+   }
+
+   if (m_dataRecorder->IsOpen()) {
+      status += "Logging to " + logFile;
+   } else {
+      status += "Logging disabled (unable to open " + logFile + ')';
+   }
+
+   SetStatusText(status, 0);
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 1);
 }
 
 void MainFrame::OnToggleDataGenerator(wxCommandEvent &event)
