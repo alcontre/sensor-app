@@ -280,7 +280,7 @@ bool SensorTreeModel::GetAttr(const wxDataViewItem &item, unsigned int col, wxDa
    if (col != COL_NAME)
       return false;
 
-   if (!NodeMatchesHighlightFilter(node))
+   if (!NodeNameMatchesFilter(node))
       return false;
 
    attr.SetBold(true);
@@ -417,7 +417,7 @@ bool SensorTreeModel::NodeMatchesFilter(const Node *node) const
    return path.Lower().Find(m_filterLower) != wxNOT_FOUND;
 }
 
-bool SensorTreeModel::NodeMatchesHighlightFilter(const Node *node) const
+bool SensorTreeModel::NodeNameMatchesFilter(const Node *node) const
 {
    if (!node || m_filterLower.IsEmpty())
       return false;
