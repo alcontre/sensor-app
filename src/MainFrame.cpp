@@ -5,6 +5,7 @@
 #include "SensorDataTestGenerator.h"
 #include "SensorTreeModel.h"
 
+#include <algorithm>
 #include <functional>
 #include <vector>
 
@@ -179,6 +180,8 @@ void MainFrame::BindEvents()
    Bind(wxEVT_MENU, &MainFrame::OnCollapseAll, this, ID_CollapseAll);
    // Toggle expand/collapse on double-click (item activated)
    Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &MainFrame::OnItemActivated, this);
+   Bind(wxEVT_DATAVIEW_ITEM_EXPANDED, &MainFrame::OnItemExpanded, this);
+   Bind(wxEVT_DATAVIEW_ITEM_COLLAPSED, &MainFrame::OnItemCollapsed, this);
    // Context menu for items
    Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
    Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
@@ -211,6 +214,12 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
    if (m_dataRecorder)
       m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
           sampleEvent->GetLowerThreshold(), sampleEvent->GetUpperThreshold(), sampleEvent->IsFailed());
+
+   if (m_showFailuresOnlyCheck && m_showFailuresOnlyCheck->IsChecked()) {
+      m_treeCtrl->Freeze();
+      RestoreExpansionState();
+      m_treeCtrl->Thaw();
+   }
 }
 
 // Recursively expand all descendants of a given item
@@ -237,63 +246,84 @@ static void CollapseDescendants(wxDataViewCtrl *ctrl, const wxDataViewItem &pare
 
 void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
 {
-   std::vector<Node *> expandedNodes;
-   std::function<void(const wxDataViewItem &)> collectExpanded;
-   collectExpanded = [&](const wxDataViewItem &parent) {
-      wxDataViewItemArray children;
-      m_treeModel->GetChildren(parent, children);
-      for (const wxDataViewItem &child : children) {
-         if (m_treeCtrl->IsExpanded(child)) {
-            expandedNodes.push_back(static_cast<Node *>(child.GetID()));
-         }
-         collectExpanded(child);
-      }
-   };
-   collectExpanded(wxDataViewItem(nullptr));
-
    wxString filterText = event.GetString();
-   m_treeModel->SetFilter(filterText);
 
    m_treeCtrl->Freeze();
-   for (Node *node : expandedNodes) {
-      if (!node)
-         continue;
-      wxDataViewItem item(static_cast<void *>(node));
-      if (!m_treeModel->IsNodeVisible(node))
-         continue;
-      m_treeCtrl->Expand(item);
-   }
+   m_treeModel->SetFilter(filterText);
+   RestoreExpansionState();
    m_treeCtrl->Thaw();
 }
 
 void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
 {
-   std::vector<Node *> expandedNodes;
-   std::function<void(const wxDataViewItem &)> collectExpanded;
-   collectExpanded = [&](const wxDataViewItem &parent) {
-      wxDataViewItemArray children;
-      m_treeModel->GetChildren(parent, children);
-      for (const wxDataViewItem &child : children) {
-         if (m_treeCtrl->IsExpanded(child)) {
-            expandedNodes.push_back(static_cast<Node *>(child.GetID()));
-         }
-         collectExpanded(child);
-      }
-   };
-   collectExpanded(wxDataViewItem(nullptr));
-
-   m_treeModel->SetShowFailuresOnly(event.IsChecked());
-
    m_treeCtrl->Freeze();
-   for (Node *node : expandedNodes) {
-      if (!node)
+   m_treeModel->SetShowFailuresOnly(event.IsChecked());
+   RestoreExpansionState();
+   m_treeCtrl->Thaw();
+}
+
+void MainFrame::OnItemExpanded(wxDataViewEvent &event)
+{
+   Node *node = static_cast<Node *>(event.GetItem().GetID());
+   if (node)
+      m_expandedNodes.insert(node);
+   event.Skip();
+}
+
+void MainFrame::OnItemCollapsed(wxDataViewEvent &event)
+{
+   Node *node = static_cast<Node *>(event.GetItem().GetID());
+   if (node)
+      PruneExpansionSubtree(node, true);
+   event.Skip();
+}
+
+void MainFrame::RestoreExpansionState()
+{
+   if (!m_treeCtrl || !m_treeModel)
+      return;
+
+   std::vector<Node *> nodes;
+   nodes.reserve(m_expandedNodes.size());
+   for (const Node *nodePtr : m_expandedNodes) {
+      if (!nodePtr)
          continue;
+      if (!m_treeModel->IsNodeVisible(nodePtr))
+         continue;
+      nodes.push_back(const_cast<Node *>(nodePtr));
+   }
+
+   std::sort(nodes.begin(), nodes.end(),
+       [](Node *lhs, Node *rhs) {
+          return lhs->GetDepth() < rhs->GetDepth();
+       });
+
+   for (Node *node : nodes) {
       wxDataViewItem item(static_cast<void *>(node));
-      if (!m_treeModel->IsNodeVisible(node))
-         continue;
       m_treeCtrl->Expand(item);
    }
-   m_treeCtrl->Thaw();
+}
+
+void MainFrame::PruneExpansionSubtree(Node *node, bool includeRoot)
+{
+   if (!node)
+      return;
+
+   std::vector<Node *> stack;
+   stack.push_back(node);
+
+   while (!stack.empty()) {
+      Node *current = stack.back();
+      stack.pop_back();
+
+      if (current != node || includeRoot) {
+         m_expandedNodes.erase(current);
+      }
+
+      for (const auto &child : current->GetChildren()) {
+         stack.push_back(child.get());
+      }
+   }
 }
 
 void MainFrame::OnExpandAll(wxCommandEvent &event)
@@ -301,12 +331,26 @@ void MainFrame::OnExpandAll(wxCommandEvent &event)
    // Start from the invisible root
    wxDataViewItem root = wxDataViewItem(NULL);
    ExpandDescendants(m_treeCtrl, root, m_treeModel);
+
+    m_expandedNodes.clear();
+    std::function<void(const wxDataViewItem &)> recordExpanded = [&](const wxDataViewItem &parent) {
+       wxDataViewItemArray children;
+       m_treeModel->GetChildren(parent, children);
+       for (const wxDataViewItem &child : children) {
+          Node *node = static_cast<Node *>(child.GetID());
+          if (node)
+             m_expandedNodes.insert(node);
+          recordExpanded(child);
+       }
+    };
+    recordExpanded(root);
 }
 
 void MainFrame::OnCollapseAll(wxCommandEvent &event)
 {
    wxDataViewItem root = wxDataViewItem(NULL);
    CollapseDescendants(m_treeCtrl, root, m_treeModel);
+   m_expandedNodes.clear();
 }
 
 void MainFrame::OnItemActivated(wxDataViewEvent &event)
@@ -341,8 +385,11 @@ void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
    wxDataViewItem start = m_contextItem.IsOk() ? m_contextItem : wxDataViewItem(NULL);
    CollapseDescendants(m_treeCtrl, start, m_treeModel);
    // Also collapse the starting item itself if it's a valid node
-   if (m_contextItem.IsOk())
+   if (m_contextItem.IsOk()) {
       m_treeCtrl->Collapse(m_contextItem);
+      Node *node = static_cast<Node *>(m_contextItem.GetID());
+      PruneExpansionSubtree(node, true);
+   }
 }
 
 void MainFrame::OnConnectionStatus(wxThreadEvent &event)

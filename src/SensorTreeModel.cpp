@@ -18,7 +18,7 @@ void SensorTreeModel::SetShowFailuresOnly(bool showFailuresOnly)
       return;
 
    m_showFailuresOnly = showFailuresOnly;
-   UpdateVisibility(nullptr, {}, true);
+   Cleared();
 }
 
 void SensorTreeModel::SetFilter(const wxString &filterText)
@@ -34,7 +34,7 @@ void SensorTreeModel::SetFilter(const wxString &filterText)
    m_filter      = trimmed;
    m_filterLower = lower;
 
-   UpdateVisibility(nullptr, {}, true);
+   Cleared();
 }
 
 void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
@@ -42,6 +42,40 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
     std::optional<DataValue> upperThreshold,
     bool failed)
 {
+   if (path.empty())
+      return;
+
+   std::vector<Node *> existingPath;
+   existingPath.reserve(path.size());
+
+   Node *current = nullptr;
+   for (size_t i = 0; i < path.size(); ++i) {
+      Node *next = nullptr;
+      if (i == 0) {
+         auto it = std::find_if(m_rootNodes.begin(), m_rootNodes.end(),
+             [&path](const std::unique_ptr<Node> &root) {
+                return root->GetName() == path[0];
+             });
+         if (it != m_rootNodes.end()) {
+            next = it->get();
+         }
+      } else if (current) {
+         next = current->FindChild(path[i]);
+      }
+
+      if (!next)
+         break;
+
+      existingPath.push_back(next);
+      current = next;
+   }
+
+   std::vector<bool> beforeExisting;
+   beforeExisting.reserve(existingPath.size());
+   for (Node *existingNode : existingPath) {
+      beforeExisting.push_back(ShouldNodeBeVisible(existingNode));
+   }
+
    std::vector<CreatedEdge> createdEdges;
    bool structureChanged = false;
    Node *node            = FindOrCreatePath(path, structureChanged, createdEdges);
@@ -49,17 +83,59 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
    if (!node)
       return;
 
-   node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
+   std::vector<Node *> fullPath = BuildPath(node);
 
-   std::vector<Node *> parentsToRefresh;
-   parentsToRefresh.reserve(createdEdges.size());
-   for (const auto &edge : createdEdges) {
-      if (edge.parent && edge.parentWasLeaf) {
-         parentsToRefresh.push_back(edge.parent);
+   std::vector<bool> beforeStates;
+   beforeStates.reserve(fullPath.size());
+   for (size_t i = 0; i < fullPath.size(); ++i) {
+      if (i < beforeExisting.size() && fullPath[i] == existingPath[i]) {
+         beforeStates.push_back(beforeExisting[i]);
+      } else {
+         beforeStates.push_back(false);
       }
    }
 
-   UpdateVisibility(node, parentsToRefresh, false);
+   node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
+
+   std::vector<bool> afterStates;
+   afterStates.reserve(fullPath.size());
+   for (Node *pathNode : fullPath) {
+      afterStates.push_back(ShouldNodeBeVisible(pathNode));
+   }
+
+   // Remove nodes that are no longer visible starting from the deepest node.
+   for (size_t idx = fullPath.size(); idx-- > 0;) {
+      if (beforeStates[idx] && !afterStates[idx]) {
+         Node *currentNode         = fullPath[idx];
+         wxDataViewItem parentItem = currentNode->GetParent() ? CreateItemFromNode(currentNode->GetParent()) : wxDataViewItem(nullptr);
+         ItemDeleted(parentItem, CreateItemFromNode(currentNode));
+      }
+   }
+
+   // Add nodes that became visible, starting from the root to ensure parents exist first.
+   for (size_t idx = 0; idx < fullPath.size(); ++idx) {
+      if (!beforeStates[idx] && afterStates[idx]) {
+         Node *currentNode         = fullPath[idx];
+         wxDataViewItem parentItem = currentNode->GetParent() ? CreateItemFromNode(currentNode->GetParent()) : wxDataViewItem(nullptr);
+         ItemAdded(parentItem, CreateItemFromNode(currentNode));
+      }
+   }
+
+   // Refresh the node whose data changed if it remains visible.
+   if (!fullPath.empty()) {
+      size_t leafIndex = fullPath.size() - 1;
+      if (beforeStates[leafIndex] && afterStates[leafIndex]) {
+         ItemChanged(CreateItemFromNode(fullPath[leafIndex]));
+      }
+   }
+
+   if (structureChanged) {
+      for (const auto &edge : createdEdges) {
+         if (edge.parent && edge.parentWasLeaf && ShouldNodeBeVisible(edge.parent)) {
+            ItemChanged(CreateItemFromNode(edge.parent));
+         }
+      }
+   }
 }
 
 void SensorTreeModel::AddDataSample(const SensorData &data)
@@ -293,6 +369,18 @@ wxDataViewItem SensorTreeModel::CreateItemFromNode(Node *node) const
    return wxDataViewItem(static_cast<void *>(node));
 }
 
+std::vector<Node *> SensorTreeModel::BuildPath(Node *node) const
+{
+   std::vector<Node *> reversed;
+   Node *current = node;
+   while (current) {
+      reversed.push_back(current);
+      current = current->GetParent();
+   }
+
+   return std::vector<Node *>(reversed.rbegin(), reversed.rend());
+}
+
 bool SensorTreeModel::ShouldNodeBeVisible(const Node *node) const
 {
    if (!node)
@@ -352,115 +440,5 @@ bool SensorTreeModel::HasVisibleChildren(const Node *node) const
 
 bool SensorTreeModel::IsNodeVisible(const Node *node) const
 {
-   return node && m_visibleNodes.find(node) != m_visibleNodes.end();
-}
-
-void SensorTreeModel::CollectVisibleNodes(Node *node, std::vector<Node *> &out) const
-{
-   if (!node)
-      return;
-
-   if (ShouldNodeBeVisible(node)) {
-      out.push_back(node);
-   }
-
-   for (const auto &child : node->GetChildren()) {
-      CollectVisibleNodes(child.get(), out);
-   }
-}
-
-void SensorTreeModel::UpdateVisibility(Node *valueChanged, const std::vector<Node *> &forceRefreshParents, bool refreshAllVisible)
-{
-   std::vector<Node *> newVisibleList;
-   newVisibleList.reserve(m_visibleNodes.size() + 8);
-   for (const auto &root : m_rootNodes) {
-      CollectVisibleNodes(root.get(), newVisibleList);
-   }
-
-   std::unordered_set<const Node *> newVisibleSet;
-   newVisibleSet.reserve(newVisibleList.size());
-   for (Node *node : newVisibleList) {
-      newVisibleSet.insert(node);
-   }
-
-   std::vector<Node *> removedNodes;
-   removedNodes.reserve(m_visibleNodes.size());
-   for (const Node *node : m_visibleNodes) {
-      if (!newVisibleSet.count(node)) {
-         removedNodes.push_back(const_cast<Node *>(node));
-      }
-   }
-
-   std::sort(removedNodes.begin(), removedNodes.end(),
-       [](Node *lhs, Node *rhs) {
-          return lhs->GetDepth() > rhs->GetDepth();
-       });
-
-   for (Node *node : removedNodes) {
-      m_visibleNodes.erase(node);
-      wxDataViewItem parentItem = node->GetParent() ? CreateItemFromNode(node->GetParent()) : wxDataViewItem(nullptr);
-      ItemDeleted(parentItem, CreateItemFromNode(node));
-   }
-
-   std::vector<Node *> addedNodes;
-   addedNodes.reserve(newVisibleList.size());
-   for (Node *node : newVisibleList) {
-      if (!m_visibleNodes.count(node)) {
-         addedNodes.push_back(node);
-      }
-   }
-
-   std::sort(addedNodes.begin(), addedNodes.end(),
-       [](Node *lhs, Node *rhs) {
-          return lhs->GetDepth() < rhs->GetDepth();
-       });
-
-   for (Node *node : addedNodes) {
-      m_visibleNodes.insert(node);
-      wxDataViewItem parentItem = node->GetParent() ? CreateItemFromNode(node->GetParent()) : wxDataViewItem(nullptr);
-      ItemAdded(parentItem, CreateItemFromNode(node));
-   }
-
-   std::unordered_set<const Node *> addedSet;
-   addedSet.reserve(addedNodes.size());
-   for (Node *node : addedNodes) {
-      addedSet.insert(node);
-   }
-
-   if (valueChanged && newVisibleSet.count(valueChanged) && !addedSet.count(valueChanged)) {
-      ItemChanged(CreateItemFromNode(valueChanged));
-   }
-
-   std::unordered_set<const Node *> refreshed;
-   refreshed.reserve(forceRefreshParents.size());
-   for (Node *parent : forceRefreshParents) {
-      if (!parent)
-         continue;
-      if (!newVisibleSet.count(parent))
-         continue;
-      if (addedSet.count(parent))
-         continue;
-      if (refreshed.count(parent))
-         continue;
-
-      ItemChanged(CreateItemFromNode(parent));
-      refreshed.insert(parent);
-   }
-
-   if (refreshAllVisible) {
-      for (Node *node : newVisibleList) {
-         if (!newVisibleSet.count(node))
-            continue;
-         if (!m_visibleNodes.count(node))
-            continue;
-         if (addedSet.count(node))
-            continue;
-         if (refreshed.count(node))
-            continue;
-
-         ItemChanged(CreateItemFromNode(node));
-      }
-   }
-
-   m_visibleNodes = std::move(newVisibleSet);
+   return ShouldNodeBeVisible(node);
 }

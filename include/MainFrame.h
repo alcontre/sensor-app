@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <memory>
+#include <unordered_set>
 
 class SensorDataGenerator;
 class SensorDataTestGenerator;
@@ -79,6 +80,12 @@ class MainFrame : public wxFrame
    void OnExpandAllHere(wxCommandEvent &event);
    void OnCollapseChildrenHere(wxCommandEvent &event);
    void OnCollapseAll(wxCommandEvent &event);
+   void OnItemExpanded(wxDataViewEvent &event);
+   void OnItemCollapsed(wxDataViewEvent &event);
    void StartDataTestGeneration();
    void StopDataTestGeneration();
+   void RestoreExpansionState();
+   void PruneExpansionSubtree(Node *node, bool includeRoot);
+
+   std::unordered_set<const Node *> m_expandedNodes;
 };
