@@ -151,10 +151,10 @@ void MainFrame::CreateSensorTreeView()
    m_filterCtrl = new wxTextCtrl(panel, wxID_ANY);
    m_filterCtrl->SetHint("Type to filter sensors...");
 
-   filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
+   filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL);
    filterSizer->Add(m_rotateLogButton, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
    filterSizer->Add(m_showFailuresOnlyCheck, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
-   filterSizer->Add(m_filterCtrl, 1, wxEXPAND);
+   filterSizer->Add(m_filterCtrl, 1, wxEXPAND | wxLEFT, 8);
 
    sizer->Add(filterSizer, 0, wxEXPAND | wxALL, 5);
    sizer->Add(m_treeCtrl, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 5);
