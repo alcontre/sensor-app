@@ -95,6 +95,7 @@ class MainFrame : public wxFrame
    void RestoreExpansionState();
    void PruneExpansionSubtree(Node *node, bool includeRoot);
    void RotateLogFile(const wxString &reason = wxString());
+   void CloseLogFile(const wxString &reason = wxString());
 
    std::unordered_set<const Node *> m_expandedNodes;
 };

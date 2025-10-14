@@ -31,8 +31,6 @@ MainFrame::MainFrame() :
    CreateSensorTreeView();
    BindEvents();
 
-   RotateLogFile("Logging started.");
-
    m_dataThread = new SensorDataGenerator(this);
    if (m_dataThread->Run() != wxTHREAD_NO_ERROR) {
       delete m_dataThread;
@@ -79,7 +77,7 @@ void MainFrame::SetupStatusBar()
    CreateStatusBar(3);
 
    SetStatusText("", 0);
-   SetStatusText("Current log: (initializing...)", 1);
+   SetStatusText("Current log: (no active log)", 1);
    SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
 }
 
@@ -411,13 +409,14 @@ void MainFrame::OnConnectionStatus(wxThreadEvent &event)
          m_isNetworkConnected    = true;
          UpdateNetworkIndicator(*wxGREEN, "Network connected");
          if (!wasConnected) {
-            RotateLogFile("Network connected; log rotated.");
+            RotateLogFile("Network connected; new log file started.");
          }
          break;
       }
       case ID_ConnectNo: {
          m_isNetworkConnected = false;
          UpdateNetworkIndicator(*wxYELLOW, "Network idle");
+         CloseLogFile("Connection lost; log file closed.");
          break;
       }
       default:
@@ -486,6 +485,16 @@ void MainFrame::RotateLogFile(const wxString &reason)
 
    SetStatusText("", 0);
    SetStatusText(logStatus, 1);
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
+}
+
+void MainFrame::CloseLogFile(const wxString &reason)
+{
+   m_dataRecorder.reset();
+   m_currentLogFile.clear();
+
+   SetStatusText("", 0);
+   SetStatusText("Current log: (no active log)", 1);
    SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
 }
 
