@@ -115,7 +115,6 @@ void MainFrame::CreateSensorTreeView()
 
    // Associate the model with the control
    m_treeCtrl->AssociateModel(m_treeModel);
-   m_treeModel->DecRef();
 
    // Provide a callback so the model can determine the expansion state of nodes
    m_treeModel->SetExpansionQuery([this](const Node *node) {
@@ -509,6 +508,7 @@ void MainFrame::OnClose(wxCloseEvent &event)
    if (m_treeCtrl && m_treeModel) {
       // Disassociate model to prevent wxDataViewCtrl from trying to remove notifier
       m_treeCtrl->AssociateModel(nullptr);
+      delete m_treeModel;
       m_treeModel = nullptr;
    }
 
