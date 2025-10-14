@@ -1,7 +1,6 @@
 #include "SensorTreeModel.h"
 
 #include <algorithm>
-#include <functional>
 #include <utility>
 
 SensorTreeModel::SensorTreeModel()
@@ -35,6 +34,11 @@ void SensorTreeModel::SetFilter(const wxString &filterText)
    m_filterLower = lower;
 
    Cleared();
+}
+
+void SensorTreeModel::SetExpansionQuery(std::function<bool(const Node *)> query)
+{
+   m_isNodeExpanded = std::move(query);
 }
 
 void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
@@ -202,13 +206,22 @@ void SensorTreeModel::GetValue(wxVariant &variant, const wxDataViewItem &item, u
       case COL_NAME:
          variant = wxString(node->GetName());
          break;
-      case COL_VALUE:
+      case COL_VALUE: {
          if (node->HasValue()) {
             variant = wxString(node->GetValue().GetDisplayString());
+            break;
+         }
+
+         // Collapsed nodes with children failures show the failed count in red
+         const size_t failureCount = CountFailedDescendants(node);
+         const bool isExpanded     = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
+         if (failureCount > 0 && !isExpanded) {
+            variant = wxString::Format("%zu failed", failureCount);
          } else {
             variant = wxString("");
          }
          break;
+      }
       case COL_LOWER_THRESHOLD:
          if (node->HasValue() && node->GetLowerThreshold()) {
             variant = wxString(node->GetLowerThreshold()->GetDisplayString());
@@ -261,11 +274,20 @@ bool SensorTreeModel::GetAttr(const wxDataViewItem &item, unsigned int col, wxDa
          case COL_LOWER_THRESHOLD:
          case COL_UPPER_THRESHOLD:
          case COL_STATUS:
-            attr.SetBold(true);
             attr.SetColour(*wxRED);
             return true;
          default:
             break;
+      }
+   }
+
+   if (col == COL_VALUE) {
+      // Collapsed nodes with children failures show the failed count in red
+      const bool isExpanded     = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
+      const size_t failureCount = CountFailedDescendants(node);
+      if (failureCount > 0 && !isExpanded && !node->HasValue()) {
+         attr.SetColour(*wxRED);
+         return true;
       }
    }
 
@@ -431,4 +453,24 @@ bool SensorTreeModel::HasVisibleChildren(const Node *node) const
          return true;
    }
    return false;
+}
+
+size_t SensorTreeModel::CountFailedDescendants(const Node *node) const
+{
+   if (!node)
+      return 0;
+
+   size_t count = 0;
+   for (const auto &child : node->GetChildren()) {
+      const Node *childPtr = child.get();
+      if (!childPtr)
+         continue;
+
+      if (childPtr->HasValue() && childPtr->IsFailed())
+         ++count;
+
+      count += CountFailedDescendants(childPtr);
+   }
+
+   return count;
 }

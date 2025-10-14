@@ -117,6 +117,14 @@ void MainFrame::CreateSensorTreeView()
    m_treeCtrl->AssociateModel(m_treeModel);
    m_treeModel->DecRef();
 
+   // Provide a callback so the model can determine the expansion state of nodes
+   m_treeModel->SetExpansionQuery([this](const Node *node) {
+      if (!node)
+         return false;
+      wxDataViewItem item(const_cast<Node *>(node));
+      return m_treeCtrl->IsExpanded(item);
+   });
+
    // Add columns
    m_treeCtrl->AppendTextColumn("Name", SensorTreeModel::COL_NAME, wxDATAVIEW_CELL_INERT, 200);
    m_treeCtrl->AppendTextColumn("Value", SensorTreeModel::COL_VALUE, wxDATAVIEW_CELL_INERT, 120, wxALIGN_CENTER); // value display
@@ -265,6 +273,9 @@ void MainFrame::OnItemExpanded(wxDataViewEvent &event)
    Node *node = static_cast<Node *>(event.GetItem().GetID());
    if (node)
       m_expandedNodes.insert(node);
+
+   // Force the view to re-query the model so the failure summary reflects the new expansion state.
+   m_treeCtrl->Refresh();
    event.Skip();
 }
 
@@ -273,6 +284,8 @@ void MainFrame::OnItemCollapsed(wxDataViewEvent &event)
    Node *node = static_cast<Node *>(event.GetItem().GetID());
    if (node)
       PruneExpansionSubtree(node, true);
+   // Force the view to re-query the model so the failure summary reflects the new expansion state.
+   m_treeCtrl->Refresh();
    event.Skip();
 }
 

@@ -3,6 +3,7 @@
 
 #include <wx/dataview.h>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -24,6 +25,7 @@ class SensorTreeModel : public wxDataViewModel
    void SetShowFailuresOnly(bool showFailuresOnly);
    bool IsShowingFailuresOnly() const { return m_showFailuresOnly; }
    bool IsNodeVisible(const Node *node) const;
+   void SetExpansionQuery(std::function<bool(const Node *)> query);
 
    unsigned int GetColumnCount() const override;
    wxString GetColumnType(unsigned int col) const override;
@@ -71,4 +73,7 @@ class SensorTreeModel : public wxDataViewModel
    bool NodeMatchesFilter(const Node *node) const;
    bool NodeNameMatchesFilter(const Node *node) const;
    bool HasVisibleChildren(const Node *node) const;
+   size_t CountFailedDescendants(const Node *node) const;
+
+   std::function<bool(const Node *)> m_isNodeExpanded;
 };
