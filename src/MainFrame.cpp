@@ -204,15 +204,13 @@ void MainFrame::BindEvents()
 
 void MainFrame::OnAgeTimer(wxTimerEvent &event)
 {
-   if (m_treeModel) {
-      m_treeModel->RefreshElapsedTimes();
-   }
+   m_treeModel->RefreshElapsedTimes();
 }
 
 void MainFrame::OnSensorData(wxCommandEvent &event)
 {
    auto *sampleEvent = dynamic_cast<SensorDataEvent *>(&event);
-   if (!sampleEvent || !m_treeModel)
+   if (!sampleEvent)
       return;
 
    m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
@@ -291,9 +289,6 @@ void MainFrame::OnItemCollapsed(wxDataViewEvent &event)
 
 void MainFrame::RestoreExpansionState()
 {
-   if (!m_treeCtrl || !m_treeModel)
-      return;
-
    std::vector<Node *> nodes;
    nodes.reserve(m_expandedNodes.size());
    for (const Node *nodePtr : m_expandedNodes) {
