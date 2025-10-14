@@ -75,12 +75,12 @@ void MainFrame::CreateMenuBar()
 
 void MainFrame::SetupStatusBar()
 {
-   // Create a two-field status bar; connection info and msg counts
-   CreateStatusBar(2);
+   // Create a three-field status bar; left reserved, middle log file, right message count
+   CreateStatusBar(3);
 
-   // Ensure left is blank and initialize right with zero messages received
    SetStatusText("", 0);
-   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 1);
+   SetStatusText("Current log: (initializing...)", 1);
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
 }
 
 void MainFrame::OnExit(wxCommandEvent &event)
@@ -422,7 +422,7 @@ void MainFrame::OnNewMessage(wxThreadEvent &event)
 {
    (void)event; // no payload expected
    ++m_messagesReceived;
-   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 1);
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
 }
 
 void MainFrame::UpdateNetworkIndicator(const wxColour &colour, const wxString &tooltip)
@@ -438,7 +438,6 @@ void MainFrame::StartDataTestGeneration()
       return;
 
    m_generationActive = true;
-   SetStatusText("Auto data generation started", 1);
    // Check the menu item if present on this frame
    if (GetMenuBar()) {
       wxMenuItem *mi = GetMenuBar()->FindItem(ID_ToggleDataGen);
@@ -453,7 +452,6 @@ void MainFrame::StopDataTestGeneration()
       return;
 
    m_generationActive = false;
-   SetStatusText("Auto data generation stopped", 1);
    // Uncheck the menu item if present on this frame
    if (GetMenuBar()) {
       wxMenuItem *mi = GetMenuBar()->FindItem(ID_ToggleDataGen);
@@ -464,31 +462,24 @@ void MainFrame::StopDataTestGeneration()
 
 void MainFrame::RotateLogFile(const wxString &reason)
 {
-   if (m_dataRecorder) {
-      m_dataRecorder.reset();
-   }
+   m_dataRecorder.reset();
 
    m_currentLogFile = SensorDataJsonWriter::GenerateTimestampedFilename();
    m_dataRecorder   = std::make_unique<SensorDataJsonWriter>(m_currentLogFile);
 
-   wxString status;
-   if (!reason.IsEmpty()) {
-      status = reason;
-   }
-
    const wxString logFile = wxString::FromUTF8(m_currentLogFile.c_str());
-   if (!status.IsEmpty()) {
-      status += ' ';
-   }
+   wxString logStatus;
 
    if (m_dataRecorder->IsOpen()) {
-      status += "Logging to " + logFile;
+      logStatus = "Current log: " + logFile;
    } else {
-      status += "Logging disabled (unable to open " + logFile + ')';
+      logStatus = "Current log: " + logFile + " (open failed)";
+      wxLogError("Unable to open log file '" + logFile + "'.");
    }
 
-   SetStatusText(status, 0);
-   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 1);
+   SetStatusText("", 0);
+   SetStatusText(logStatus, 1);
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
 }
 
 void MainFrame::OnToggleDataGenerator(wxCommandEvent &event)
