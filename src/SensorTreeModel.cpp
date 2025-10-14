@@ -73,7 +73,7 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
    std::vector<bool> beforeExisting;
    beforeExisting.reserve(existingPath.size());
    for (Node *existingNode : existingPath) {
-      beforeExisting.push_back(ShouldNodeBeVisible(existingNode));
+      beforeExisting.push_back(IsNodeVisible(existingNode));
    }
 
    std::vector<CreatedEdge> createdEdges;
@@ -100,7 +100,7 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
    std::vector<bool> afterStates;
    afterStates.reserve(fullPath.size());
    for (Node *pathNode : fullPath) {
-      afterStates.push_back(ShouldNodeBeVisible(pathNode));
+      afterStates.push_back(IsNodeVisible(pathNode));
    }
 
    // Remove nodes that are no longer visible starting from the deepest node.
@@ -131,7 +131,7 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
 
    if (structureChanged) {
       for (const auto &edge : createdEdges) {
-         if (edge.parent && edge.parentWasLeaf && ShouldNodeBeVisible(edge.parent)) {
+         if (edge.parent && edge.parentWasLeaf && IsNodeVisible(edge.parent)) {
             ItemChanged(CreateItemFromNode(edge.parent));
          }
       }
@@ -376,14 +376,14 @@ std::vector<Node *> SensorTreeModel::BuildPath(Node *node) const
    return std::vector<Node *>(reversed.rbegin(), reversed.rend());
 }
 
-bool SensorTreeModel::ShouldNodeBeVisible(const Node *node) const
+bool SensorTreeModel::IsNodeVisible(const Node *node) const
 {
    if (!node)
       return false;
 
    bool childVisible = false;
    for (const auto &child : node->GetChildren()) {
-      if (ShouldNodeBeVisible(child.get())) {
+      if (IsNodeVisible(child.get())) {
          childVisible = true;
       }
    }
@@ -431,9 +431,4 @@ bool SensorTreeModel::HasVisibleChildren(const Node *node) const
          return true;
    }
    return false;
-}
-
-bool SensorTreeModel::IsNodeVisible(const Node *node) const
-{
-   return ShouldNodeBeVisible(node);
 }

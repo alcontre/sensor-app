@@ -68,7 +68,6 @@ class SensorTreeModel : public wxDataViewModel
 
    Node *GetNodeFromItem(const wxDataViewItem &item) const;
    wxDataViewItem CreateItemFromNode(Node *node) const;
-   bool ShouldNodeBeVisible(const Node *node) const;
    bool NodeMatchesFilter(const Node *node) const;
    bool NodeNameMatchesFilter(const Node *node) const;
    bool HasVisibleChildren(const Node *node) const;
