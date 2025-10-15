@@ -2,6 +2,7 @@
 #include "SensorData.h"
 
 #include <chrono>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <string>
@@ -53,6 +54,19 @@ class Node
    std::vector<Node *> GetAllDescendants() const;
    std::vector<Node *> GetLeafNodes() const;
 
+   struct TimedSample
+   {
+      std::chrono::steady_clock::time_point timestamp;
+      double value;
+      bool failed;
+   };
+
+   const std::deque<TimedSample> &GetHistory() const { return m_history; }
+   bool HasNumericHistory() const { return !m_history.empty(); }
+   void SetHistoryLimit(size_t limit);
+   size_t GetHistoryLimit() const { return m_historyLimit; }
+   void ClearHistory();
+
  private:
    std::string m_name;
    Node *m_parent;
@@ -64,6 +78,8 @@ class Node
    std::optional<DataValue> m_upperThreshold;
    bool m_failed;
    std::chrono::steady_clock::time_point m_lastUpdate;
+   std::deque<TimedSample> m_history;
+   size_t m_historyLimit;
 
    void GetAllDescendantsRecursive(std::vector<Node *> &nodes) const;
    void GetLeafNodesRecursive(std::vector<Node *> &leaves) const;

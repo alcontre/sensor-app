@@ -4,8 +4,6 @@
 
 #include <atomic>
 #include <random>
-#include <string>
-#include <vector>
 
 class wxEvtHandler;
 

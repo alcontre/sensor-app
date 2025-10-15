@@ -2,6 +2,7 @@
 build/
 run/
 .vscode/
+.cache/
 
 # Backup files
 **/*.swo

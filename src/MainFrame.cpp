@@ -9,6 +9,9 @@
 #include <functional>
 #include <vector>
 
+#include <wx/textdlg.h>
+#include <wx/window.h>
+
 MainFrame::MainFrame() :
     wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
         wxDefaultPosition, wxSize(800, 600)),
@@ -24,12 +27,15 @@ MainFrame::MainFrame() :
     m_testDataThread(nullptr),
     m_messagesReceived(0),
     m_currentLogFile(),
-    m_isNetworkConnected(false)
+    m_isNetworkConnected(false),
+    m_plotManager(nullptr)
 {
    CreateMenuBar();
    SetupStatusBar();
    CreateSensorTreeView();
    BindEvents();
+
+   m_plotManager = std::make_unique<PlotManager>(this, m_treeModel);
 
    m_dataThread = new SensorDataGenerator(this);
    if (m_dataThread->Run() != wxTHREAD_NO_ERROR) {
@@ -189,6 +195,7 @@ void MainFrame::BindEvents()
    Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
    Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
    Bind(wxEVT_MENU, &MainFrame::OnCollapseChildrenHere, this, ID_CollapseChildrenHere);
+   Bind(wxEVT_MENU, &MainFrame::OnSendToNewPlot, this, ID_SendToNewPlot);
 
    m_filterCtrl->Bind(wxEVT_TEXT, &MainFrame::OnFilterTextChanged, this);
 
@@ -356,6 +363,73 @@ void MainFrame::OnCollapseAll(wxCommandEvent &event)
    m_expandedNodes.clear();
 }
 
+void MainFrame::OnSendToNewPlot(wxCommandEvent &event)
+{
+   (void)event;
+
+   wxString skippedMessage;
+   std::vector<Node *> nodes = CollectPlotEligibleNodes(skippedMessage);
+   if (nodes.empty()) {
+      wxString feedback = skippedMessage.IsEmpty() ? wxString("Select one or more sensors with numeric data to plot.") : skippedMessage;
+      wxMessageBox(feedback, "Send to Plot", wxOK | wxICON_INFORMATION, this);
+      return;
+   }
+
+   wxTextEntryDialog dialog(this, "Enter a name for the new plot:", "Create Plot");
+   dialog.SetValue("Sensor Plot");
+   if (dialog.ShowModal() != wxID_OK)
+      return;
+
+   wxString plotName = dialog.GetValue();
+   plotName.Trim(true);
+   plotName.Trim(false);
+
+   if (plotName.IsEmpty()) {
+      wxMessageBox("Plot name cannot be empty.", "Create Plot", wxOK | wxICON_WARNING, this);
+      return;
+   }
+
+   if (!m_plotManager)
+      m_plotManager = std::make_unique<PlotManager>(this, m_treeModel);
+
+   if (m_plotManager->HasPlot(plotName)) {
+      wxMessageBox("A plot with that name already exists. Choose another name.", "Create Plot", wxOK | wxICON_WARNING, this);
+      return;
+   }
+
+   m_plotManager->CreatePlot(plotName, nodes);
+
+   if (!skippedMessage.IsEmpty())
+      wxLogMessage(skippedMessage);
+}
+
+void MainFrame::OnSendToExistingPlot(wxCommandEvent &event)
+{
+   auto it = m_plotMenuIdToName.find(event.GetId());
+   if (it == m_plotMenuIdToName.end())
+      return;
+
+   wxString skippedMessage;
+   std::vector<Node *> nodes = CollectPlotEligibleNodes(skippedMessage);
+   if (nodes.empty()) {
+      wxString feedback = skippedMessage.IsEmpty() ? wxString("Select one or more sensors with numeric data to plot.") : skippedMessage;
+      wxMessageBox(feedback, "Send to Plot", wxOK | wxICON_INFORMATION, this);
+      return;
+   }
+
+   if (!m_plotManager)
+      m_plotManager = std::make_unique<PlotManager>(this, m_treeModel);
+
+   const bool appended = m_plotManager->AddSensorsToPlot(it->second, nodes);
+   if (!appended) {
+      wxMessageBox("All selected sensors are already included in that plot.", "Send to Plot", wxOK | wxICON_INFORMATION, this);
+      return;
+   }
+
+   if (!skippedMessage.IsEmpty())
+      wxLogMessage(skippedMessage);
+}
+
 void MainFrame::OnItemActivated(wxDataViewEvent &event)
 {
    wxDataViewItem item = event.GetItem();
@@ -374,6 +448,7 @@ void MainFrame::OnItemContextMenu(wxDataViewEvent &event)
    wxMenu menu;
    menu.Append(ID_ExpandAllHere, "Expand All");
    menu.Append(ID_CollapseChildrenHere, "Collapse Children");
+   PopulatePlotMenu(menu);
    PopupMenu(&menu);
 }
 
@@ -393,6 +468,101 @@ void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
       Node *node = static_cast<Node *>(m_contextItem.GetID());
       PruneExpansionSubtree(node, true);
    }
+}
+
+void MainFrame::PopulatePlotMenu(wxMenu &menu)
+{
+   if (!m_plotManager)
+      m_plotManager = std::make_unique<PlotManager>(this, m_treeModel);
+
+   ClearDynamicPlotMenuItems();
+
+   wxMenu *plotMenu = new wxMenu;
+   plotMenu->Append(ID_SendToNewPlot, "New Plot...");
+
+   const auto plotNames = m_plotManager->GetPlotNames();
+   if (plotNames.empty()) {
+      wxMenuItem *noPlots = plotMenu->Append(wxID_ANY, "No existing plots");
+      noPlots->Enable(false);
+   } else {
+      for (const wxString &name : plotNames) {
+         const int id = wxWindow::NewControlId();
+         plotMenu->Append(id, name);
+         m_plotMenuIdToName[id] = name;
+         Bind(wxEVT_MENU, &MainFrame::OnSendToExistingPlot, this, id);
+      }
+   }
+
+   if (menu.GetMenuItemCount() > 0)
+      menu.AppendSeparator();
+   menu.AppendSubMenu(plotMenu, "Send to Plot");
+}
+
+void MainFrame::ClearDynamicPlotMenuItems()
+{
+   for (const auto &entry : m_plotMenuIdToName) {
+      Unbind(wxEVT_MENU, &MainFrame::OnSendToExistingPlot, this, entry.first);
+      wxWindow::UnreserveControlId(entry.first, entry.first);
+   }
+   m_plotMenuIdToName.clear();
+}
+
+std::vector<Node *> MainFrame::CollectPlotEligibleNodes(wxString &messageOut) const
+{
+   wxDataViewItemArray selections;
+   m_treeCtrl->GetSelections(selections);
+
+   if (m_contextItem.IsOk()) {
+      bool found = false;
+      for (const wxDataViewItem &item : selections) {
+         if (item == m_contextItem) {
+            found = true;
+            break;
+         }
+      }
+      if (!found)
+         selections.Add(m_contextItem);
+   }
+
+   std::unordered_set<Node *> unique;
+   std::vector<Node *> nodes;
+   std::vector<wxString> skipped;
+
+   for (const wxDataViewItem &item : selections) {
+      Node *node = static_cast<Node *>(item.GetID());
+      if (!node)
+         continue;
+
+      if (!node->IsLeaf()) {
+         skipped.push_back(wxString::FromUTF8(node->GetFullPath().c_str()) + " (not a sensor)");
+         continue;
+      }
+
+      if (unique.find(node) != unique.end())
+         continue;
+
+      const bool hasNumericValue = node->HasValue() && node->GetValue().IsNumeric();
+      const bool hasHistory      = node->HasNumericHistory();
+      if (!hasNumericValue && !hasHistory) {
+         skipped.push_back(wxString::FromUTF8(node->GetFullPath().c_str()) + " (no numeric data)");
+         continue;
+      }
+
+      unique.insert(node);
+      nodes.push_back(node);
+   }
+
+   if (!skipped.empty()) {
+      wxString summary = "Skipped sensors:\n";
+      for (const wxString &label : skipped) {
+         summary += "- " + label + "\n";
+      }
+      messageOut = summary;
+   } else {
+      messageOut.clear();
+   }
+
+   return nodes;
 }
 
 void MainFrame::OnRotateLog(wxCommandEvent &event)
@@ -508,6 +678,11 @@ void MainFrame::OnClose(wxCloseEvent &event)
    StopDataTestGeneration();
    if (m_ageTimer.IsRunning()) {
       m_ageTimer.Stop();
+   }
+
+   if (m_plotManager) {
+      m_plotManager->CloseAllPlots();
+      m_plotManager.reset();
    }
    // Ensure the data view control disassociates the model before it is destroyed.
    if (m_treeCtrl && m_treeModel) {
