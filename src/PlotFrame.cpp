@@ -35,31 +35,62 @@ class PlotFrame::PlotCanvas : public wxPanel
    {
       (void)event;
       wxAutoBufferedPaintDC dc(this);
-      dc.SetBackground(*wxWHITE_BRUSH);
+      const wxColour background(18, 22, 30);
+      const wxColour textColour(235, 238, 245);
+      const wxColour gridColour(70, 78, 92);
+
+      dc.SetBackground(wxBrush(background));
       dc.Clear();
 
-      const auto &series = m_owner->GetSeries();
+      const auto &series        = m_owner->GetSeries();
+      const auto windowDuration = m_owner->GetTimeRangeDuration();
       if (series.empty()) {
-         dc.SetTextForeground(*wxBLACK);
+         dc.SetTextForeground(textColour);
          dc.DrawText("No sensors selected for plotting.", wxPoint(10, 10));
          return;
       }
 
       using TimedSample = Node::TimedSample;
 
-      bool hasData    = false;
-      auto earliest   = std::chrono::steady_clock::time_point::max();
-      auto latest     = std::chrono::steady_clock::time_point::min();
-      double minValue = std::numeric_limits<double>::infinity();
-      double maxValue = -std::numeric_limits<double>::infinity();
-
+      auto latestOverall = std::chrono::steady_clock::time_point::min();
       for (const auto &entry : series) {
          const auto &history = entry.node->GetHistory();
          if (history.empty())
             continue;
+         latestOverall = std::max(latestOverall, history.back().timestamp);
+      }
 
-         hasData = true;
+      if (latestOverall == std::chrono::steady_clock::time_point::min()) {
+         dc.SetTextForeground(textColour);
+         dc.DrawText("Waiting for numeric samples...", wxPoint(10, 10));
+         return;
+      }
+
+      auto windowStart = std::chrono::steady_clock::time_point::min();
+      if (windowDuration)
+         windowStart = latestOverall - *windowDuration;
+
+      bool hasData = false;
+      auto earliest = std::chrono::steady_clock::time_point::max();
+      auto latest   = std::chrono::steady_clock::time_point::min();
+      double minValue = std::numeric_limits<double>::infinity();
+      double maxValue = -std::numeric_limits<double>::infinity();
+
+      std::vector<std::vector<const TimedSample *>> filtered(series.size());
+
+      for (size_t idx = 0; idx < series.size(); ++idx) {
+         const auto &entry   = series[idx];
+         const auto &history = entry.node->GetHistory();
+         if (history.empty())
+            continue;
+
+         auto &bucket = filtered[idx];
          for (const TimedSample &sample : history) {
+            if (windowDuration && sample.timestamp < windowStart)
+               continue;
+
+            hasData = true;
+            bucket.push_back(&sample);
             earliest = std::min(earliest, sample.timestamp);
             latest   = std::max(latest, sample.timestamp);
             minValue = std::min(minValue, sample.value);
@@ -68,8 +99,8 @@ class PlotFrame::PlotCanvas : public wxPanel
       }
 
       if (!hasData) {
-         dc.SetTextForeground(*wxBLACK);
-         dc.DrawText("Waiting for numeric samples...", wxPoint(10, 10));
+         dc.SetTextForeground(textColour);
+         dc.DrawText("No samples in selected timescale.", wxPoint(10, 10));
          return;
       }
 
@@ -88,27 +119,27 @@ class PlotFrame::PlotCanvas : public wxPanel
       }
 
       const int leftMargin   = 60;
-      const int rightMargin  = 20;
-      const int topMargin    = 20;
-      const int bottomMargin = 50;
+      const int rightMargin  = 25;
+      const int topMargin    = 12;
+      const int bottomMargin = 65;
 
       const wxSize size    = GetClientSize();
       const int plotWidth  = std::max(1, size.GetWidth() - leftMargin - rightMargin);
       const int plotHeight = std::max(1, size.GetHeight() - topMargin - bottomMargin);
 
       const wxPoint origin(leftMargin, size.GetHeight() - bottomMargin);
-      const wxPoint xAxisEnd(leftMargin + plotWidth, origin.y);
-      const wxPoint yAxisTop(leftMargin, topMargin);
+      const int plotTop = origin.y - plotHeight;
 
-      dc.SetPen(*wxBLACK_PEN);
-      dc.DrawLine(origin, xAxisEnd);
-      dc.DrawLine(origin, yAxisTop);
-
-      const double timeRange  = std::max(1e-9, std::chrono::duration<double>(latest - earliest).count());
+      auto plotStart = windowDuration ? (latestOverall - *windowDuration) : earliest;
+      if (plotStart > latest)
+         plotStart = latest;
+      if (plotStart > earliest && !windowDuration)
+         plotStart = earliest;
+      const double timeRange  = std::max(1e-9, std::chrono::duration<double>(latest - plotStart).count());
       const double valueRange = std::max(1e-9, maxValue - minValue);
 
       auto toPoint = [&](const TimedSample &sample) {
-         const double tSeconds = std::chrono::duration<double>(sample.timestamp - earliest).count();
+         const double tSeconds = std::chrono::duration<double>(sample.timestamp - plotStart).count();
          const double xNorm    = tSeconds / timeRange;
          const double yNorm    = (sample.value - minValue) / valueRange;
          const int x           = origin.x + static_cast<int>(xNorm * plotWidth);
@@ -116,35 +147,100 @@ class PlotFrame::PlotCanvas : public wxPanel
          return wxPoint(x, y);
       };
 
-      dc.SetPen(wxPen(wxColour(220, 220, 220), 1, wxPENSTYLE_DOT));
-      for (int i = 1; i < 5; ++i) {
+      dc.SetPen(wxPen(gridColour, 1, wxPENSTYLE_DOT));
+      for (int i = 0; i <= 5; ++i) {
          const int y = origin.y - (plotHeight * i) / 5;
          dc.DrawLine(leftMargin, y, leftMargin + plotWidth, y);
       }
+      for (int i = 0; i <= 5; ++i) {
+         const int x = leftMargin + (plotWidth * i) / 5;
+         dc.DrawLine(x, origin.y, x, plotTop);
+      }
+
+      auto formatSeconds = [](double seconds) {
+         if (seconds < 1.0)
+            return wxString::Format("%.2fs", seconds);
+         if (seconds < 60.0)
+            return wxString::Format("%.1fs", seconds);
+         const int totalSeconds = static_cast<int>(std::round(seconds));
+         const int minutes      = totalSeconds / 60;
+         const int remSeconds   = totalSeconds % 60;
+         if (minutes < 60)
+            return wxString::Format("%dm %02ds", minutes, remSeconds);
+         const int hours = minutes / 60;
+         const int remMin = minutes % 60;
+         return wxString::Format("%dh %02dm", hours, remMin);
+      };
+
+      auto formatValue = [](double value) {
+         const double absVal = std::fabs(value);
+         if (absVal >= 1000.0)
+            return wxString::Format("%.0f", value);
+         if (absVal >= 100.0)
+            return wxString::Format("%.1f", value);
+         return wxString::Format("%.2f", value);
+      };
 
       wxFont baseFont = GetFont();
       wxFont boldFont = baseFont;
       boldFont.MakeBold();
+
       dc.SetFont(boldFont);
-      dc.SetTextForeground(*wxBLACK);
-      dc.DrawText("Time (s)", wxPoint(origin.x + plotWidth / 2 - 25, origin.y + 20));
-      dc.DrawRotatedText("Value", wxPoint(leftMargin - 40, topMargin + plotHeight / 2 + 20), 90.0);
+      dc.SetTextForeground(textColour);
+      wxString rangeLabel;
+      if (windowDuration) {
+         const double seconds = std::chrono::duration<double>(*windowDuration).count();
+         if (seconds >= 60.0) {
+            const double minutes = seconds / 60.0;
+            rangeLabel = wxString::Format("Last %.1f min", minutes);
+         } else {
+            rangeLabel = wxString::Format("Last %.0f s", seconds);
+         }
+      } else {
+         const double seconds = std::chrono::duration<double>(latest - earliest).count();
+         rangeLabel = wxString::Format("Entire history (%.1f s span)", seconds);
+      }
+
+      const wxSize labelSize = dc.GetTextExtent(rangeLabel);
+      const int rangeLabelY  = std::max(2, plotTop - labelSize.GetHeight() - 4);
+      dc.DrawText(rangeLabel, wxPoint(leftMargin, rangeLabelY));
 
       dc.SetFont(baseFont);
-      int legendX = leftMargin + 10;
-      int legendY = topMargin + 5;
+      dc.SetTextForeground(textColour);
 
-      for (const auto &entry : series) {
-         const auto &history = entry.node->GetHistory();
-         if (history.size() < 2)
+      for (int i = 0; i <= 5; ++i) {
+         const double fraction = static_cast<double>(i) / 5.0;
+         const double value    = minValue + fraction * (maxValue - minValue);
+         const wxString label  = formatValue(value);
+         const int y           = origin.y - static_cast<int>(fraction * plotHeight);
+         const wxSize textSz   = dc.GetTextExtent(label);
+         dc.DrawText(label, wxPoint(leftMargin - textSz.GetWidth() - 6, y - textSz.GetHeight() / 2));
+      }
+
+      for (int i = 0; i <= 5; ++i) {
+         const double fraction = static_cast<double>(i) / 5.0;
+         const double seconds  = fraction * timeRange;
+         const wxString label  = formatSeconds(seconds);
+         const int x           = leftMargin + static_cast<int>(fraction * plotWidth);
+         const wxSize textSz   = dc.GetTextExtent(label);
+         dc.DrawText(label, wxPoint(x - textSz.GetWidth() / 2, origin.y + 6));
+      }
+
+      int legendX = leftMargin + 8;
+      int legendY = plotTop + 24;
+
+      for (size_t idx = 0; idx < series.size(); ++idx) {
+         const auto &entry     = series[idx];
+         const auto &filteredHistory = filtered[idx];
+         if (filteredHistory.size() < 2)
             continue;
 
          dc.SetPen(wxPen(entry.colour, 2));
 
          bool firstPoint = true;
          wxPoint previous;
-         for (const TimedSample &sample : history) {
-            const wxPoint point = toPoint(sample);
+         for (const TimedSample *sample : filteredHistory) {
+            const wxPoint point = toPoint(*sample);
             if (firstPoint) {
                previous   = point;
                firstPoint = false;
@@ -156,14 +252,15 @@ class PlotFrame::PlotCanvas : public wxPanel
       }
 
       // Draw markers even for single samples to confirm presence
-      for (const auto &entry : series) {
-         const auto &history = entry.node->GetHistory();
-         if (history.empty())
+      for (size_t idx = 0; idx < series.size(); ++idx) {
+         const auto &entry            = series[idx];
+         const auto &filteredHistory = filtered[idx];
+         if (filteredHistory.empty())
             continue;
          dc.SetPen(wxPen(entry.colour, 2));
          dc.SetBrush(wxBrush(entry.colour));
-         for (const TimedSample &sample : history) {
-            const wxPoint point = toPoint(sample);
+         for (const TimedSample *sample : filteredHistory) {
+            const wxPoint point = toPoint(*sample);
             dc.DrawCircle(point, 2);
          }
       }
@@ -174,7 +271,7 @@ class PlotFrame::PlotCanvas : public wxPanel
          dc.SetBrush(wxBrush(entry.colour));
          dc.SetPen(*wxTRANSPARENT_PEN);
          dc.DrawRectangle(legendX, legendY, 10, 10);
-         dc.SetTextForeground(*wxBLACK);
+         dc.SetTextForeground(textColour);
          dc.DrawText(label, legendX + 15, legendY - 2);
          legendY += 16;
       }
@@ -191,11 +288,46 @@ PlotFrame::PlotFrame(wxWindow *parent, const wxString &title, SensorTreeModel *m
     m_timer(this),
     m_series(),
     m_onClosed(),
-    m_nextColourIndex(0)
+    m_nextColourIndex(0),
+    m_timeButtons(),
+    m_timeRange(TimeRange::All)
 {
-   wxBoxSizer *sizer = new wxBoxSizer(wxVERTICAL);
-   sizer->Add(m_canvas, 1, wxEXPAND);
-   SetSizer(sizer);
+   wxPanel *controlPanel   = new wxPanel(this, wxID_ANY);
+   wxBoxSizer *controlSizer = new wxBoxSizer(wxHORIZONTAL);
+   controlPanel->SetSizer(controlSizer);
+
+   wxStaticText *label = new wxStaticText(controlPanel, wxID_ANY, "Timescale:");
+   controlSizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+
+   struct TimeOption
+   {
+      const char *label;
+      TimeRange range;
+   };
+
+   const TimeOption options[] = {
+       {"20s", TimeRange::Last20Seconds},
+       {"1m", TimeRange::Last1Minute},
+       {"5m", TimeRange::Last5Minutes},
+       {"10m", TimeRange::Last10Minutes},
+       {"All", TimeRange::All}};
+
+   for (const auto &option : options) {
+      const int id           = wxWindow::NewControlId();
+      wxToggleButton *button = new wxToggleButton(controlPanel, id, option.label);
+      controlSizer->Add(button, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 4);
+      m_timeButtons.push_back({id, option.range, button});
+      Bind(wxEVT_TOGGLEBUTTON, &PlotFrame::OnTimeRangeButton, this, id);
+   }
+
+   controlSizer->AddStretchSpacer();
+
+   wxBoxSizer *rootSizer = new wxBoxSizer(wxVERTICAL);
+   rootSizer->Add(controlPanel, 0, wxEXPAND | wxALL, 5);
+   rootSizer->Add(m_canvas, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 5);
+   SetSizer(rootSizer);
+
+   SetTimeRange(TimeRange::Last1Minute);
 
    m_timer.Start(250);
    Bind(wxEVT_TIMER, &PlotFrame::OnTimer, this, m_timer.GetId());
@@ -277,4 +409,51 @@ wxColour PlotFrame::PickColour()
 
    ++m_nextColourIndex;
    return colour;
+}
+
+void PlotFrame::OnTimeRangeButton(wxCommandEvent &event)
+{
+   for (const auto &entry : m_timeButtons) {
+      if (entry.id == event.GetId()) {
+         SetTimeRange(entry.range);
+         break;
+      }
+   }
+}
+
+void PlotFrame::SetTimeRange(TimeRange range)
+{
+   if (m_timeRange == range) {
+      UpdateTimeRangeButtons();
+   } else {
+      m_timeRange = range;
+      UpdateTimeRangeButtons();
+      if (m_canvas)
+         m_canvas->Refresh();
+   }
+}
+
+void PlotFrame::UpdateTimeRangeButtons()
+{
+   for (auto &entry : m_timeButtons) {
+      if (entry.button)
+         entry.button->SetValue(entry.range == m_timeRange);
+   }
+}
+
+std::optional<std::chrono::seconds> PlotFrame::GetTimeRangeDuration() const
+{
+   switch (m_timeRange) {
+      case TimeRange::Last20Seconds:
+         return std::chrono::seconds(20);
+      case TimeRange::Last1Minute:
+         return std::chrono::minutes(1);
+      case TimeRange::Last5Minutes:
+         return std::chrono::minutes(5);
+      case TimeRange::Last10Minutes:
+         return std::chrono::minutes(10);
+      case TimeRange::All:
+      default:
+         return std::nullopt;
+   }
 }
