@@ -19,11 +19,11 @@ struct PlotSeries
 
 enum class TimeRange
 {
-  Last20Seconds,
-  Last1Minute,
-  Last5Minutes,
-  Last10Minutes,
-  All
+   Last20Seconds,
+   Last1Minute,
+   Last5Minutes,
+   Last10Minutes,
+   All
 };
 
 class PlotFrame : public wxFrame
@@ -35,7 +35,7 @@ class PlotFrame : public wxFrame
    const wxString &GetPlotName() const { return m_title; }
    const std::vector<PlotSeries> &GetSeries() const { return m_series; }
    void SetOnClosed(std::function<void()> callback);
-  std::optional<std::chrono::seconds> GetTimeRangeDuration() const;
+   std::optional<std::chrono::seconds> GetTimeRangeDuration() const;
 
  private:
    class PlotCanvas;
@@ -44,9 +44,9 @@ class PlotFrame : public wxFrame
    void OnClose(wxCloseEvent &event);
    bool AppendSeries(Node *node);
    wxColour PickColour();
-  void OnTimeRangeButton(wxCommandEvent &event);
-  void SetTimeRange(TimeRange range);
-  void UpdateTimeRangeButtons();
+   void OnTimeRangeButton(wxCommandEvent &event);
+   void SetTimeRange(TimeRange range);
+   void UpdateTimeRangeButtons();
 
    wxString m_title;
    SensorTreeModel *m_model;
@@ -55,12 +55,12 @@ class PlotFrame : public wxFrame
    std::vector<PlotSeries> m_series;
    std::function<void()> m_onClosed;
    size_t m_nextColourIndex;
-  struct TimeButtonEntry
-  {
-    int id;
-    TimeRange range;
-    wxToggleButton *button;
-  };
-  std::vector<TimeButtonEntry> m_timeButtons;
-  TimeRange m_timeRange;
+   struct TimeButtonEntry
+   {
+      int id;
+      TimeRange range;
+      wxToggleButton *button;
+   };
+   std::vector<TimeButtonEntry> m_timeButtons;
+   TimeRange m_timeRange;
 };

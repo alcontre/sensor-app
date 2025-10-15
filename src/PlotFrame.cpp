@@ -70,9 +70,9 @@ class PlotFrame::PlotCanvas : public wxPanel
       if (windowDuration)
          windowStart = latestOverall - *windowDuration;
 
-      bool hasData = false;
-      auto earliest = std::chrono::steady_clock::time_point::max();
-      auto latest   = std::chrono::steady_clock::time_point::min();
+      bool hasData    = false;
+      auto earliest   = std::chrono::steady_clock::time_point::max();
+      auto latest     = std::chrono::steady_clock::time_point::min();
       double minValue = std::numeric_limits<double>::infinity();
       double maxValue = -std::numeric_limits<double>::infinity();
 
@@ -118,10 +118,10 @@ class PlotFrame::PlotCanvas : public wxPanel
          maxValue += 1.0;
       }
 
-      const int leftMargin   = 60;
-      const int rightMargin  = 25;
-      const int topMargin    = 12;
-      const int bottomMargin = 65;
+      const int leftMargin   = 55;
+      const int rightMargin  = 22;
+      const int topMargin    = 10;
+      const int bottomMargin = 30;
 
       const wxSize size    = GetClientSize();
       const int plotWidth  = std::max(1, size.GetWidth() - leftMargin - rightMargin);
@@ -167,7 +167,7 @@ class PlotFrame::PlotCanvas : public wxPanel
          const int remSeconds   = totalSeconds % 60;
          if (minutes < 60)
             return wxString::Format("%dm %02ds", minutes, remSeconds);
-         const int hours = minutes / 60;
+         const int hours  = minutes / 60;
          const int remMin = minutes % 60;
          return wxString::Format("%dh %02dm", hours, remMin);
       };
@@ -182,29 +182,6 @@ class PlotFrame::PlotCanvas : public wxPanel
       };
 
       wxFont baseFont = GetFont();
-      wxFont boldFont = baseFont;
-      boldFont.MakeBold();
-
-      dc.SetFont(boldFont);
-      dc.SetTextForeground(textColour);
-      wxString rangeLabel;
-      if (windowDuration) {
-         const double seconds = std::chrono::duration<double>(*windowDuration).count();
-         if (seconds >= 60.0) {
-            const double minutes = seconds / 60.0;
-            rangeLabel = wxString::Format("Last %.1f min", minutes);
-         } else {
-            rangeLabel = wxString::Format("Last %.0f s", seconds);
-         }
-      } else {
-         const double seconds = std::chrono::duration<double>(latest - earliest).count();
-         rangeLabel = wxString::Format("Entire history (%.1f s span)", seconds);
-      }
-
-      const wxSize labelSize = dc.GetTextExtent(rangeLabel);
-      const int rangeLabelY  = std::max(2, plotTop - labelSize.GetHeight() - 4);
-      dc.DrawText(rangeLabel, wxPoint(leftMargin, rangeLabelY));
-
       dc.SetFont(baseFont);
       dc.SetTextForeground(textColour);
 
@@ -223,14 +200,14 @@ class PlotFrame::PlotCanvas : public wxPanel
          const wxString label  = formatSeconds(seconds);
          const int x           = leftMargin + static_cast<int>(fraction * plotWidth);
          const wxSize textSz   = dc.GetTextExtent(label);
-         dc.DrawText(label, wxPoint(x - textSz.GetWidth() / 2, origin.y + 6));
+         dc.DrawText(label, wxPoint(x - textSz.GetWidth() / 2, origin.y + 4));
       }
 
       int legendX = leftMargin + 8;
       int legendY = plotTop + 24;
 
       for (size_t idx = 0; idx < series.size(); ++idx) {
-         const auto &entry     = series[idx];
+         const auto &entry           = series[idx];
          const auto &filteredHistory = filtered[idx];
          if (filteredHistory.size() < 2)
             continue;
@@ -253,7 +230,7 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       // Draw markers even for single samples to confirm presence
       for (size_t idx = 0; idx < series.size(); ++idx) {
-         const auto &entry            = series[idx];
+         const auto &entry           = series[idx];
          const auto &filteredHistory = filtered[idx];
          if (filteredHistory.empty())
             continue;
@@ -292,7 +269,7 @@ PlotFrame::PlotFrame(wxWindow *parent, const wxString &title, SensorTreeModel *m
     m_timeButtons(),
     m_timeRange(TimeRange::All)
 {
-   wxPanel *controlPanel   = new wxPanel(this, wxID_ANY);
+   wxPanel *controlPanel    = new wxPanel(this, wxID_ANY);
    wxBoxSizer *controlSizer = new wxBoxSizer(wxHORIZONTAL);
    controlPanel->SetSizer(controlSizer);
 
