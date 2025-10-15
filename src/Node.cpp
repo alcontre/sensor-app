@@ -12,7 +12,9 @@ Node::Node(const std::string &name, Node *parent) :
     m_lowerThreshold(std::nullopt),
     m_upperThreshold(std::nullopt),
     m_failed(false),
-    m_lastUpdate(std::chrono::steady_clock::time_point{})
+    m_lastUpdate(std::chrono::steady_clock::time_point{}),
+    m_history(),
+    m_historyLimit(512)
 {
 }
 
@@ -43,12 +45,21 @@ void Node::SetValue(const DataValue &value,
     std::optional<DataValue> upperThreshold,
     bool failed)
 {
+   auto now         = std::chrono::steady_clock::now();
    m_value          = value;
    m_hasValue       = true;
    m_lowerThreshold = std::move(lowerThreshold);
    m_upperThreshold = std::move(upperThreshold);
    m_failed         = failed;
-   m_lastUpdate     = std::chrono::steady_clock::now();
+   m_lastUpdate     = now;
+
+   if (value.IsNumeric() && m_historyLimit > 0) {
+      TimedSample sample{now, value.GetNumeric(), failed};
+      m_history.push_back(sample);
+      while (m_history.size() > m_historyLimit) {
+         m_history.pop_front();
+      }
+   }
 }
 
 void Node::ClearValue()
@@ -58,6 +69,7 @@ void Node::ClearValue()
    m_upperThreshold.reset();
    m_failed     = false;
    m_lastUpdate = std::chrono::steady_clock::time_point{};
+   ClearHistory();
 }
 
 std::vector<std::string> Node::GetPath() const
@@ -140,4 +152,19 @@ double Node::GetSecondsSinceUpdate() const
    auto now     = std::chrono::steady_clock::now();
    auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(now - m_lastUpdate);
    return elapsed.count();
+}
+
+void Node::SetHistoryLimit(size_t limit)
+{
+   if (limit == 0)
+      limit = 1;
+   m_historyLimit = limit;
+   while (m_history.size() > m_historyLimit) {
+      m_history.pop_front();
+   }
+}
+
+void Node::ClearHistory()
+{
+   m_history.clear();
 }

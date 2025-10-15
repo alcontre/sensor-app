@@ -1,4 +1,5 @@
 #pragma once
+#include "PlotManager.h"
 #include "SensorTreeModel.h"
 
 #include "SensorDataJsonWriter.h"
@@ -11,6 +12,7 @@
 #include <atomic>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 class SensorDataGenerator;
@@ -34,6 +36,7 @@ enum
    // Context menu entries
    ID_ExpandAllHere,
    ID_CollapseChildrenHere,
+   ID_SendToNewPlot,
 
    // Controls
    ID_RotateLog
@@ -86,6 +89,8 @@ class MainFrame : public wxFrame
    void OnItemContextMenu(wxDataViewEvent &event);
    void OnExpandAllHere(wxCommandEvent &event);
    void OnCollapseChildrenHere(wxCommandEvent &event);
+   void OnSendToNewPlot(wxCommandEvent &event);
+   void OnSendToExistingPlot(wxCommandEvent &event);
    void OnCollapseAll(wxCommandEvent &event);
    void OnItemExpanded(wxDataViewEvent &event);
    void OnItemCollapsed(wxDataViewEvent &event);
@@ -94,8 +99,13 @@ class MainFrame : public wxFrame
    void StopDataTestGeneration();
    void RestoreExpansionState();
    void PruneExpansionSubtree(Node *node, bool includeRoot);
+   void PopulatePlotMenu(wxMenu &menu);
+   void ClearDynamicPlotMenuItems();
+   std::vector<Node *> CollectPlotEligibleNodes(wxString &messageOut) const;
    void RotateLogFile(const wxString &reason = wxString());
    void CloseLogFile(const wxString &reason = wxString());
 
    std::unordered_set<const Node *> m_expandedNodes;
+   std::unique_ptr<PlotManager> m_plotManager;
+   std::unordered_map<int, wxString> m_plotMenuIdToName;
 };

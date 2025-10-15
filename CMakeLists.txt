@@ -24,6 +24,8 @@ add_executable(${PROJECT_NAME}
     src/SensorDataTestGenerator.cpp
     src/Node.cpp
     src/SensorTreeModel.cpp
+    src/PlotFrame.cpp
+    src/PlotManager.cpp
 )
 
 # Include directories
