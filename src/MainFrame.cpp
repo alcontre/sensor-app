@@ -108,10 +108,6 @@ void MainFrame::OnAbout(wxCommandEvent &event)
        "About Sensor Tree Viewer", wxOK | wxICON_INFORMATION);
 }
 
-// Removed manual test data generation; data is created by the auto-generator
-
-// Start/stop handlers removed; generation starts automatically
-
 void MainFrame::CreateSensorTreeView()
 {
    // Create main panel

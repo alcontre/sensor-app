@@ -31,9 +31,8 @@ class PlotFrame::PlotCanvas : public wxPanel
       event.Skip();
    }
 
-   void OnPaint(wxPaintEvent &event)
+   void OnPaint(wxPaintEvent &WXUNUSED(event))
    {
-      (void)event;
       wxAutoBufferedPaintDC dc(this);
       const wxColour background(18, 22, 30);
       const wxColour textColour(235, 238, 245);
@@ -329,9 +328,8 @@ void PlotFrame::SetOnClosed(std::function<void()> callback)
    m_onClosed = std::move(callback);
 }
 
-void PlotFrame::OnTimer(wxTimerEvent &event)
+void PlotFrame::OnTimer(wxTimerEvent &WXUNUSED(event))
 {
-   (void)event;
    m_canvas->Refresh();
 }
 
