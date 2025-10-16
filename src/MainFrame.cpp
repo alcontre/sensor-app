@@ -12,6 +12,13 @@
 #include <wx/textdlg.h>
 #include <wx/window.h>
 
+namespace {
+constexpr int STATUS_FIELD_NET_STATUS    = 0;
+constexpr int STATUS_FIELD_LOG_INFO      = 1;
+constexpr int STATUS_FIELD_MESSAGE_COUNT = 2;
+constexpr int STATUS_FIELD_COUNT         = 3;
+} // namespace
+
 MainFrame::MainFrame() :
     wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
         wxDefaultPosition, wxSize(800, 600)),
@@ -81,11 +88,11 @@ void MainFrame::CreateMenuBar()
 void MainFrame::SetupStatusBar()
 {
    // Create a three-field status bar; left reserved, middle log file, right message count
-   CreateStatusBar(3);
+   CreateStatusBar(STATUS_FIELD_COUNT);
 
-   SetStatusText("", 0);
-   SetStatusText("Current log: (no active log)", 1);
-   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
+   SetStatusText("", STATUS_FIELD_NET_STATUS);
+   SetStatusText("Current log: (no active log)", STATUS_FIELD_LOG_INFO);
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), STATUS_FIELD_MESSAGE_COUNT);
 }
 
 void MainFrame::OnExit(wxCommandEvent &event)
@@ -600,7 +607,7 @@ void MainFrame::OnConnectionStatus(wxThreadEvent &event)
 void MainFrame::OnNewMessage(wxThreadEvent &WXUNUSED(event))
 {
    ++m_messagesReceived;
-   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
+   SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), STATUS_FIELD_MESSAGE_COUNT);
 }
 
 void MainFrame::UpdateNetworkIndicator(const wxColour &colour, const wxString &tooltip)
@@ -655,7 +662,7 @@ void MainFrame::RotateLogFile(const wxString &reason)
       wxLogError("Unable to open log file '" + logFile + "'.");
    }
 
-   SetStatusText(logStatus, 1);
+   SetStatusText(logStatus, STATUS_FIELD_LOG_INFO);
 }
 
 void MainFrame::CloseLogFile(const wxString &reason)
@@ -663,7 +670,7 @@ void MainFrame::CloseLogFile(const wxString &reason)
    m_dataRecorder.reset();
    m_currentLogFile.clear();
 
-   SetStatusText("Current log: (no active log)", 1);
+   SetStatusText("Current log: (no active log)", STATUS_FIELD_LOG_INFO);
 }
 
 void MainFrame::OnToggleDataGenerator(wxCommandEvent &event)
