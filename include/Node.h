@@ -17,7 +17,6 @@ class Node
 
    // Basic properties
    const std::string &GetName() const { return m_name; }
-   void SetName(const std::string &name) { m_name = name; }
 
    // Hierarchy management
    Node *GetParent() const { return m_parent; }
@@ -37,7 +36,6 @@ class Node
        std::optional<DataValue> lowerThreshold = std::nullopt,
        std::optional<DataValue> upperThreshold = std::nullopt,
        bool failed                             = false);
-   void ClearValue();
    double GetSecondsSinceUpdate() const;
 
    // Tree utilities

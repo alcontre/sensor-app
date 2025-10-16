@@ -62,16 +62,6 @@ void Node::SetValue(const DataValue &value,
    }
 }
 
-void Node::ClearValue()
-{
-   m_hasValue = false;
-   m_lowerThreshold.reset();
-   m_upperThreshold.reset();
-   m_failed     = false;
-   m_lastUpdate = std::chrono::steady_clock::time_point{};
-   ClearHistory();
-}
-
 std::vector<std::string> Node::GetPath() const
 {
    std::vector<std::string> path;
