@@ -682,10 +682,9 @@ void MainFrame::OnClose(wxCloseEvent &event)
       m_ageTimer.Stop();
    }
 
-   if (m_plotManager) {
-      m_plotManager->CloseAllPlots();
-      m_plotManager.reset();
-   }
+   m_plotManager->CloseAllPlots();
+   m_plotManager.reset();
+
    // Ensure the data view control disassociates the model before it is destroyed.
    if (m_treeCtrl && m_treeModel) {
       // Disassociate model to prevent wxDataViewCtrl from trying to remove notifier
