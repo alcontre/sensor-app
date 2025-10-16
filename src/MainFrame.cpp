@@ -497,7 +497,7 @@ void MainFrame::ClearDynamicPlotMenuItems()
 {
    for (const auto &entry : m_plotMenuIdToName) {
       Unbind(wxEVT_MENU, &MainFrame::OnSendToExistingPlot, this, entry.first);
-      wxWindow::UnreserveControlId(entry.first, entry.first);
+      wxWindow::UnreserveControlId(entry.first);
    }
    m_plotMenuIdToName.clear();
 }
