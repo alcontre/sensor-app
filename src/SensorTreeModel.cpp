@@ -375,6 +375,12 @@ void SensorTreeModel::RefreshElapsedTimes()
    }
 }
 
+void SensorTreeModel::Clear()
+{
+   m_rootNodes.clear();
+   Cleared();
+}
+
 // Helper methods
 Node *SensorTreeModel::GetNodeFromItem(const wxDataViewItem &item) const
 {

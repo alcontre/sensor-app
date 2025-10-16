@@ -40,6 +40,7 @@ class SensorTreeModel : public wxDataViewModel
    unsigned int GetChildren(const wxDataViewItem &parent, wxDataViewItemArray &array) const override;
 
    void RefreshElapsedTimes();
+   void Clear();
 
    enum Column
    {

@@ -39,7 +39,8 @@ enum
    ID_SendToNewPlot,
 
    // Controls
-   ID_RotateLog
+   ID_RotateLog,
+   ID_ClearTree
 };
 
 class MainFrame : public wxFrame
@@ -65,6 +66,7 @@ class MainFrame : public wxFrame
    wxPanel *m_networkIndicator;
    wxCheckBox *m_showFailuresOnlyCheck;
    wxButton *m_rotateLogButton;
+   wxButton *m_clearTreeButton;
    SensorTreeModel *m_treeModel;
    wxTimer m_ageTimer;
    std::atomic<bool> m_generationActive;
@@ -95,6 +97,7 @@ class MainFrame : public wxFrame
    void OnItemExpanded(wxDataViewEvent &event);
    void OnItemCollapsed(wxDataViewEvent &event);
    void OnRotateLog(wxCommandEvent &event);
+   void OnClearTree(wxCommandEvent &event);
    void StartDataTestGeneration();
    void StopDataTestGeneration();
    void RestoreExpansionState();

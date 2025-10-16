@@ -20,6 +20,7 @@ MainFrame::MainFrame() :
     m_showFailuresOnlyCheck(nullptr),
     m_networkIndicator(nullptr),
     m_rotateLogButton(nullptr),
+    m_clearTreeButton(nullptr),
     m_treeModel(nullptr),
     m_ageTimer(this, ID_AgeTimer),
     m_generationActive(false),
@@ -155,6 +156,9 @@ void MainFrame::CreateSensorTreeView()
    m_rotateLogButton = new wxButton(panel, ID_RotateLog, "Rotate Log");
    m_rotateLogButton->SetToolTip("Finish the current log file and start a new one");
 
+   m_clearTreeButton = new wxButton(panel, ID_ClearTree, "Clear");
+   m_clearTreeButton->SetToolTip("Remove all sensor data from the tree view");
+
    m_showFailuresOnlyCheck = new wxCheckBox(panel, wxID_ANY, "Show failures only");
    m_showFailuresOnlyCheck->SetToolTip("Only display sensors currently in a failed state");
 
@@ -164,6 +168,7 @@ void MainFrame::CreateSensorTreeView()
 
    filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL);
    filterSizer->Add(m_rotateLogButton, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
+   filterSizer->Add(m_clearTreeButton, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
    filterSizer->Add(m_showFailuresOnlyCheck, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
    filterSizer->Add(m_filterCtrl, 1, wxEXPAND | wxLEFT, 8);
 
@@ -191,6 +196,7 @@ void MainFrame::BindEvents()
    Bind(wxEVT_DATAVIEW_ITEM_EXPANDED, &MainFrame::OnItemExpanded, this);
    Bind(wxEVT_DATAVIEW_ITEM_COLLAPSED, &MainFrame::OnItemCollapsed, this);
    Bind(wxEVT_BUTTON, &MainFrame::OnRotateLog, this, ID_RotateLog);
+   Bind(wxEVT_BUTTON, &MainFrame::OnClearTree, this, ID_ClearTree);
    // Context menu for items
    Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &MainFrame::OnItemContextMenu, this);
    Bind(wxEVT_MENU, &MainFrame::OnExpandAllHere, this, ID_ExpandAllHere);
@@ -363,10 +369,8 @@ void MainFrame::OnCollapseAll(wxCommandEvent &event)
    m_expandedNodes.clear();
 }
 
-void MainFrame::OnSendToNewPlot(wxCommandEvent &event)
+void MainFrame::OnSendToNewPlot(wxCommandEvent &WXUNUSED(event))
 {
-   (void)event;
-
    wxString skippedMessage;
    std::vector<Node *> nodes = CollectPlotEligibleNodes(skippedMessage);
    if (nodes.empty()) {
@@ -388,9 +392,6 @@ void MainFrame::OnSendToNewPlot(wxCommandEvent &event)
       wxMessageBox("Plot name cannot be empty.", "Create Plot", wxOK | wxICON_WARNING, this);
       return;
    }
-
-   if (!m_plotManager)
-      m_plotManager = std::make_unique<PlotManager>(this, m_treeModel);
 
    if (m_plotManager->HasPlot(plotName)) {
       wxMessageBox("A plot with that name already exists. Choose another name.", "Create Plot", wxOK | wxICON_WARNING, this);
@@ -416,9 +417,6 @@ void MainFrame::OnSendToExistingPlot(wxCommandEvent &event)
       wxMessageBox(feedback, "Send to Plot", wxOK | wxICON_INFORMATION, this);
       return;
    }
-
-   if (!m_plotManager)
-      m_plotManager = std::make_unique<PlotManager>(this, m_treeModel);
 
    const bool appended = m_plotManager->AddSensorsToPlot(it->second, nodes);
    if (!appended) {
@@ -472,9 +470,6 @@ void MainFrame::OnCollapseChildrenHere(wxCommandEvent &event)
 
 void MainFrame::PopulatePlotMenu(wxMenu &menu)
 {
-   if (!m_plotManager)
-      m_plotManager = std::make_unique<PlotManager>(this, m_treeModel);
-
    ClearDynamicPlotMenuItems();
 
    wxMenu *plotMenu = new wxMenu;
@@ -565,10 +560,18 @@ std::vector<Node *> MainFrame::CollectPlotEligibleNodes(wxString &messageOut) co
    return nodes;
 }
 
-void MainFrame::OnRotateLog(wxCommandEvent &event)
+void MainFrame::OnRotateLog(wxCommandEvent &WXUNUSED(event))
 {
-   (void)event;
    RotateLogFile("Log rotated manually.");
+}
+
+void MainFrame::OnClearTree(wxCommandEvent &WXUNUSED(event))
+{
+   m_treeCtrl->Freeze();
+   m_treeCtrl->UnselectAll();
+   m_treeModel->Clear();
+   m_expandedNodes.clear();
+   m_treeCtrl->Thaw();
 }
 
 void MainFrame::OnConnectionStatus(wxThreadEvent &event)
@@ -594,9 +597,8 @@ void MainFrame::OnConnectionStatus(wxThreadEvent &event)
    }
 }
 
-void MainFrame::OnNewMessage(wxThreadEvent &event)
+void MainFrame::OnNewMessage(wxThreadEvent &WXUNUSED(event))
 {
-   (void)event; // no payload expected
    ++m_messagesReceived;
    SetStatusText(wxString::Format("Messages received: %zu", (unsigned long long)m_messagesReceived), 2);
 }
