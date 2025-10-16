@@ -2,11 +2,6 @@
 
 #include <wx/thread.h>
 
-#include <atomic>
-#include <random>
-#include <string>
-#include <vector>
-
 class wxEvtHandler;
 
 class SensorDataGenerator : public wxThread

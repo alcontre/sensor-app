@@ -232,7 +232,7 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
       m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
           sampleEvent->GetLowerThreshold(), sampleEvent->GetUpperThreshold(), sampleEvent->IsFailed());
 
-   if (m_showFailuresOnlyCheck && m_showFailuresOnlyCheck->IsChecked()) {
+   if (m_showFailuresOnlyCheck->IsChecked()) {
       m_treeCtrl->Freeze();
       RestoreExpansionState();
       m_treeCtrl->Thaw();
@@ -689,12 +689,9 @@ void MainFrame::OnClose(wxCloseEvent &event)
    m_plotManager.reset();
 
    // Ensure the data view control disassociates the model before it is destroyed.
-   if (m_treeCtrl && m_treeModel) {
-      // Disassociate model to prevent wxDataViewCtrl from trying to remove notifier
-      m_treeCtrl->AssociateModel(nullptr);
-      delete m_treeModel;
-      m_treeModel = nullptr;
-   }
+   m_treeCtrl->AssociateModel(nullptr);
+   delete m_treeModel;
+   m_treeModel = nullptr;
 
    m_dataRecorder.reset();
 

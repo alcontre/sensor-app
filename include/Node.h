@@ -8,9 +8,6 @@
 #include <string>
 #include <vector>
 
-// Forward declaration
-class Node;
-
 // Generic hierarchical node that can represent any level in the tree
 class Node
 {

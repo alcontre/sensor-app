@@ -62,11 +62,9 @@ bool PlotManager::AddSensorsToPlot(const wxString &name, const std::vector<Node 
    if (it == m_plots.end())
       return false;
 
-   if (!it->second.frame)
-      return false;
-
-   const bool appended = it->second.frame->AddSensors(nodes);
-   it->second.frame->Raise();
+   PlotFrame *frame    = it->second.frame;
+   const bool appended = frame->AddSensors(nodes);
+   frame->Raise();
    return appended;
 }
 
@@ -87,7 +85,7 @@ void PlotManager::CloseAllPlots()
    frames.reserve(m_plots.size());
    for (auto &entry : m_plots) {
       PlotFrame *frame = entry.second.frame;
-      if (frame && !frame->IsBeingDeleted()) {
+      if (!frame->IsBeingDeleted()) {
          frame->SetOnClosed(nullptr);
          frames.push_back(frame);
       }
@@ -95,8 +93,7 @@ void PlotManager::CloseAllPlots()
    m_plots.clear();
 
    for (PlotFrame *frame : frames) {
-      if (frame)
-         frame->Destroy();
+      frame->Destroy();
    }
 }
 
