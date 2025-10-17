@@ -6,6 +6,7 @@
 #include <chrono>
 #include <functional>
 #include <optional>
+#include <string>
 #include <vector>
 
 class Node;
@@ -13,7 +14,8 @@ class SensorTreeModel;
 
 struct PlotSeries
 {
-   const Node *node;
+   std::vector<std::string> pathSegments;
+   std::string displayPath;
    wxColour colour;
 };
 
@@ -34,6 +36,7 @@ class PlotFrame : public wxFrame
    bool AddSensors(const std::vector<Node *> &nodes);
    const wxString &GetPlotName() const { return m_title; }
    const std::vector<PlotSeries> &GetSeries() const { return m_series; }
+   SensorTreeModel *GetModel() const { return m_model; }
    void SetOnClosed(std::function<void()> callback);
    std::optional<std::chrono::seconds> GetTimeRangeDuration() const;
 

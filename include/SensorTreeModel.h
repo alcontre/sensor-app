@@ -42,6 +42,8 @@ class SensorTreeModel : public wxDataViewModel
    void RefreshElapsedTimes();
    void Clear();
 
+   Node *FindNodeByPath(const std::vector<std::string> &path) const;
+
    enum Column
    {
       COL_NAME = 0,

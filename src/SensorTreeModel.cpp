@@ -381,6 +381,34 @@ void SensorTreeModel::Clear()
    Cleared();
 }
 
+Node *SensorTreeModel::FindNodeByPath(const std::vector<std::string> &path) const
+{
+   if (path.empty())
+      return nullptr;
+
+   Node *current = nullptr;
+   for (size_t idx = 0; idx < path.size(); ++idx) {
+      const std::string &segment = path[idx];
+      if (idx == 0) {
+         auto it = std::find_if(m_rootNodes.begin(), m_rootNodes.end(),
+             [&segment](const std::unique_ptr<Node> &root) {
+                return root && root->GetName() == segment;
+             });
+         if (it == m_rootNodes.end())
+            return nullptr;
+         current = it->get();
+      } else {
+         if (!current)
+            return nullptr;
+         current = current->FindChild(segment);
+         if (!current)
+            return nullptr;
+      }
+   }
+
+   return current;
+}
+
 // Helper methods
 Node *SensorTreeModel::GetNodeFromItem(const wxDataViewItem &item) const
 {
@@ -436,7 +464,7 @@ bool SensorTreeModel::NodeMatchesFilter(const Node *node) const
    if (!node || m_filterLower.IsEmpty())
       return true;
 
-   wxString path = wxString::FromUTF8(node->GetFullPath("/").c_str());
+   wxString path = wxString::FromUTF8(node->GetFullPath().c_str());
    return path.Lower().Find(m_filterLower) != wxNOT_FOUND;
 }
 

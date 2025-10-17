@@ -1,6 +1,7 @@
 #include "PlotFrame.h"
 
 #include "Node.h"
+#include "SensorTreeModel.h"
 
 #include <algorithm>
 #include <array>
@@ -37,23 +38,80 @@ class PlotFrame::PlotCanvas : public wxPanel
       const wxColour background(18, 22, 30);
       const wxColour textColour(235, 238, 245);
       const wxColour gridColour(70, 78, 92);
+      const wxColour missingTextColour(160, 165, 180);
 
       dc.SetBackground(wxBrush(background));
       dc.Clear();
 
       const auto &series        = m_owner->GetSeries();
       const auto windowDuration = m_owner->GetTimeRangeDuration();
+
       if (series.empty()) {
          dc.SetTextForeground(textColour);
          dc.DrawText("No sensors selected for plotting.", wxPoint(10, 10));
          return;
       }
 
+      SensorTreeModel *model = m_owner->GetModel();
+
+      const int leftMargin   = 55;
+      const int rightMargin  = 22;
+      const int topMargin    = 10;
+      const int bottomMargin = 30;
+
+      const wxSize size    = GetClientSize();
+      const int plotWidth  = std::max(1, size.GetWidth() - leftMargin - rightMargin);
+      const int plotHeight = std::max(1, size.GetHeight() - topMargin - bottomMargin);
+
+      const wxPoint origin(leftMargin, size.GetHeight() - bottomMargin);
+      const int plotTop = origin.y - plotHeight;
+
+      std::vector<const Node *> resolvedNodes(series.size(), nullptr);
+      bool anyResolved = false;
+
+      for (size_t idx = 0; idx < series.size(); ++idx) {
+         const PlotSeries &entry = series[idx];
+         Node *node              = model->FindNodeByPath(entry.pathSegments);
+         resolvedNodes[idx]      = node;
+         if (node)
+            anyResolved = true;
+      }
+
+      auto drawLegend = [&](int startX, int startY) {
+         int legendX = startX;
+         int legendY = startY;
+         for (size_t idx = 0; idx < series.size(); ++idx) {
+            const auto &entry         = series[idx];
+            const bool missing        = !resolvedNodes[idx];
+            const wxColour legendText = missing ? missingTextColour : textColour;
+            const wxString baseLabel  = wxString::FromUTF8(entry.displayPath.c_str());
+            wxString legendLabel      = baseLabel;
+            if (missing)
+               legendLabel += " (no data)";
+            dc.SetBrush(wxBrush(entry.colour));
+            dc.SetPen(*wxTRANSPARENT_PEN);
+            dc.DrawRectangle(legendX, legendY, 10, 10);
+            dc.SetTextForeground(legendText);
+            dc.DrawText(legendLabel, legendX + 15, legendY - 2);
+            legendY += 16;
+         }
+      };
+
+      if (!anyResolved) {
+         dc.SetTextForeground(textColour);
+         dc.DrawText("Assigned sensors are not available in the tree.", wxPoint(10, 10));
+         drawLegend(10, 40);
+         return;
+      }
+
       using TimedSample = Node::TimedSample;
 
       auto latestOverall = std::chrono::steady_clock::time_point::min();
-      for (const auto &entry : series) {
-         const auto &history = entry.node->GetHistory();
+      for (size_t idx = 0; idx < series.size(); ++idx) {
+         const Node *node = resolvedNodes[idx];
+         if (!node)
+            continue;
+         const auto &history = node->GetHistory();
          if (history.empty())
             continue;
          latestOverall = std::max(latestOverall, history.back().timestamp);
@@ -62,6 +120,7 @@ class PlotFrame::PlotCanvas : public wxPanel
       if (latestOverall == std::chrono::steady_clock::time_point::min()) {
          dc.SetTextForeground(textColour);
          dc.DrawText("Waiting for numeric samples...", wxPoint(10, 10));
+         drawLegend(leftMargin + 8, plotTop + 24);
          return;
       }
 
@@ -78,8 +137,10 @@ class PlotFrame::PlotCanvas : public wxPanel
       std::vector<std::vector<const TimedSample *>> filtered(series.size());
 
       for (size_t idx = 0; idx < series.size(); ++idx) {
-         const auto &entry   = series[idx];
-         const auto &history = entry.node->GetHistory();
+         const Node *node = resolvedNodes[idx];
+         if (!node)
+            continue;
+         const auto &history = node->GetHistory();
          if (history.empty())
             continue;
 
@@ -100,6 +161,7 @@ class PlotFrame::PlotCanvas : public wxPanel
       if (!hasData) {
          dc.SetTextForeground(textColour);
          dc.DrawText("No samples in selected timescale.", wxPoint(10, 10));
+         drawLegend(leftMargin + 8, plotTop + 24);
          return;
       }
 
@@ -116,18 +178,6 @@ class PlotFrame::PlotCanvas : public wxPanel
          minValue -= 1.0;
          maxValue += 1.0;
       }
-
-      const int leftMargin   = 55;
-      const int rightMargin  = 22;
-      const int topMargin    = 10;
-      const int bottomMargin = 30;
-
-      const wxSize size    = GetClientSize();
-      const int plotWidth  = std::max(1, size.GetWidth() - leftMargin - rightMargin);
-      const int plotHeight = std::max(1, size.GetHeight() - topMargin - bottomMargin);
-
-      const wxPoint origin(leftMargin, size.GetHeight() - bottomMargin);
-      const int plotTop = origin.y - plotHeight;
 
       auto plotStart = windowDuration ? (latestOverall - *windowDuration) : earliest;
       if (plotStart > latest)
@@ -202,9 +252,6 @@ class PlotFrame::PlotCanvas : public wxPanel
          dc.DrawText(label, wxPoint(x - textSz.GetWidth() / 2, origin.y + 4));
       }
 
-      int legendX = leftMargin + 8;
-      int legendY = plotTop + 24;
-
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const auto &entry           = series[idx];
          const auto &filteredHistory = filtered[idx];
@@ -227,7 +274,6 @@ class PlotFrame::PlotCanvas : public wxPanel
          }
       }
 
-      // Draw markers even for single samples to confirm presence
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const auto &entry           = series[idx];
          const auto &filteredHistory = filtered[idx];
@@ -241,16 +287,7 @@ class PlotFrame::PlotCanvas : public wxPanel
          }
       }
 
-      // Legend
-      for (const auto &entry : series) {
-         const wxString label = wxString::FromUTF8(entry.node->GetFullPath().c_str());
-         dc.SetBrush(wxBrush(entry.colour));
-         dc.SetPen(*wxTRANSPARENT_PEN);
-         dc.DrawRectangle(legendX, legendY, 10, 10);
-         dc.SetTextForeground(textColour);
-         dc.DrawText(label, legendX + 15, legendY - 2);
-         legendY += 16;
-      }
+      drawLegend(leftMargin + 8, plotTop + 24);
    }
 
    PlotFrame *m_owner;
@@ -346,19 +383,26 @@ bool PlotFrame::AppendSeries(Node *node)
    if (!node)
       return false;
 
+   if (!node->HasValue() || !node->GetValue().IsNumeric())
+      return false;
+
+   std::vector<std::string> pathSegments = node->GetPath();
+   if (pathSegments.empty())
+      return false;
+
    auto alreadyTracked = std::find_if(m_series.begin(), m_series.end(),
-       [node](const PlotSeries &series) {
-          return series.node == node;
+       [&pathSegments](const PlotSeries &series) {
+          return series.pathSegments == pathSegments;
        });
 
    if (alreadyTracked != m_series.end())
       return false;
 
-   if (!node->HasValue() || !node->GetValue().IsNumeric())
-      return false;
-
-   PlotSeries series{node, PickColour()};
-   m_series.push_back(series);
+   PlotSeries series;
+   series.pathSegments = std::move(pathSegments);
+   series.displayPath  = node->GetFullPath();
+   series.colour       = PickColour();
+   m_series.push_back(std::move(series));
    return true;
 }
 
