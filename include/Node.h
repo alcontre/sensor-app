@@ -61,6 +61,7 @@ class Node
    void SetHistoryLimit(size_t limit);
    size_t GetHistoryLimit() const { return m_historyLimit; }
    void ClearHistory();
+   size_t GetUpdateCount() const { return m_updateCount; }
 
  private:
    std::string m_name;
@@ -75,6 +76,7 @@ class Node
    std::chrono::steady_clock::time_point m_lastUpdate;
    std::deque<TimedSample> m_history;
    size_t m_historyLimit;
+   size_t m_updateCount;
 
    void GetAllDescendantsRecursive(std::vector<Node *> &nodes) const;
    void GetLeafNodesRecursive(std::vector<Node *> &leaves) const;

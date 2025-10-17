@@ -51,7 +51,7 @@ class SensorTreeModel : public wxDataViewModel
       COL_LOWER_THRESHOLD,
       COL_UPPER_THRESHOLD,
       COL_ELAPSED,
-      COL_STATUS,
+      COL_UPDATE_COUNT,
       COL_COUNT
    };
 

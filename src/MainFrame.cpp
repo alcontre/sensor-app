@@ -138,7 +138,7 @@ void MainFrame::CreateSensorTreeView()
    m_treeCtrl->AppendTextColumn("Lower Threshold", SensorTreeModel::COL_LOWER_THRESHOLD, wxDATAVIEW_CELL_INERT, 130, wxALIGN_CENTER);
    m_treeCtrl->AppendTextColumn("Upper Threshold", SensorTreeModel::COL_UPPER_THRESHOLD, wxDATAVIEW_CELL_INERT, 130, wxALIGN_CENTER);
    m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100, wxALIGN_CENTER);
-   m_treeCtrl->AppendTextColumn("Status", SensorTreeModel::COL_STATUS, wxDATAVIEW_CELL_INERT, 90, wxALIGN_CENTER);
+   m_treeCtrl->AppendTextColumn("Updates", SensorTreeModel::COL_UPDATE_COUNT, wxDATAVIEW_CELL_INERT, 90, wxALIGN_CENTER);
 
    // Layout
    wxBoxSizer *sizer       = new wxBoxSizer(wxVERTICAL);

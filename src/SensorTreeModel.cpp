@@ -244,9 +244,9 @@ void SensorTreeModel::GetValue(wxVariant &variant, const wxDataViewItem &item, u
             variant = wxString("");
          }
          break;
-      case COL_STATUS:
+      case COL_UPDATE_COUNT:
          if (node->HasValue()) {
-            variant = wxString(node->IsFailed() ? "Failed" : "OK");
+            variant = wxString::Format("%llu", static_cast<unsigned long long>(node->GetUpdateCount()));
          } else {
             variant = wxString("");
          }
@@ -273,7 +273,7 @@ bool SensorTreeModel::GetAttr(const wxDataViewItem &item, unsigned int col, wxDa
          case COL_VALUE:
          case COL_LOWER_THRESHOLD:
          case COL_UPPER_THRESHOLD:
-         case COL_STATUS:
+         case COL_UPDATE_COUNT:
             attr.SetColour(*wxRED);
             return true;
          default:

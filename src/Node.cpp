@@ -14,7 +14,8 @@ Node::Node(const std::string &name, Node *parent) :
     m_failed(false),
     m_lastUpdate(std::chrono::steady_clock::time_point{}),
     m_history(),
-    m_historyLimit(512)
+    m_historyLimit(1024),
+    m_updateCount(0)
 {
 }
 
@@ -52,6 +53,7 @@ void Node::SetValue(const DataValue &value,
    m_upperThreshold = std::move(upperThreshold);
    m_failed         = failed;
    m_lastUpdate     = now;
+   ++m_updateCount;
 
    if (value.IsNumeric() && m_historyLimit > 0) {
       TimedSample sample{now, value.GetNumeric(), failed};
