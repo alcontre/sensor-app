@@ -348,7 +348,7 @@ PlotFrame::PlotFrame(wxWindow *parent, const wxString &title, SensorTreeModel *m
 
    SetTimeRange(TimeRange::Last1Minute);
 
-   m_timer.Start(250);
+   m_timer.Start(100);
    Bind(wxEVT_TIMER, &PlotFrame::OnTimer, this, m_timer.GetId());
    Bind(wxEVT_CLOSE_WINDOW, &PlotFrame::OnClose, this);
 }
