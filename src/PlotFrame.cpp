@@ -47,10 +47,11 @@ class PlotFrame::PlotCanvas : public wxPanel
       dc.Clear();
 
       std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
-      if (gc) {
-         gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
-         gc->SetInterpolationQuality(wxINTERPOLATION_DEFAULT);
-      }
+      if (!gc)
+         return;
+
+      gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
+      gc->SetInterpolationQuality(wxINTERPOLATION_DEFAULT);
 
       const auto &series        = m_owner->GetSeries();
       const auto windowDuration = m_owner->GetTimeRangeDuration();
@@ -284,36 +285,20 @@ class PlotFrame::PlotCanvas : public wxPanel
          if (filteredHistory.size() < 2)
             continue;
 
-         if (gc) {
-            gc->SetPen(wxPen(entry.colour, 2));
-            bool firstPoint = true;
-            double prevX    = 0.0;
-            double prevY    = 0.0;
-            for (const wxPoint2DDouble &point : points) {
-               if (firstPoint) {
-                  prevX      = point.m_x;
-                  prevY      = point.m_y;
-                  firstPoint = false;
-                  continue;
-               }
-               gc->StrokeLine(prevX, prevY, point.m_x, point.m_y);
-               prevX = point.m_x;
-               prevY = point.m_y;
+         gc->SetPen(wxPen(entry.colour, 2));
+         bool firstPoint = true;
+         double prevX    = 0.0;
+         double prevY    = 0.0;
+         for (const wxPoint2DDouble &point : points) {
+            if (firstPoint) {
+               prevX      = point.m_x;
+               prevY      = point.m_y;
+               firstPoint = false;
+               continue;
             }
-         } else {
-            dc.SetPen(wxPen(entry.colour, 2));
-            bool firstPoint = true;
-            wxPoint previous;
-            for (const wxPoint2DDouble &point : points) {
-               const wxPoint rounded(static_cast<int>(std::lround(point.m_x)), static_cast<int>(std::lround(point.m_y)));
-               if (firstPoint) {
-                  previous   = rounded;
-                  firstPoint = false;
-                  continue;
-               }
-               dc.DrawLine(previous, rounded);
-               previous = rounded;
-            }
+            gc->StrokeLine(prevX, prevY, point.m_x, point.m_y);
+            prevX = point.m_x;
+            prevY = point.m_y;
          }
       }
 
@@ -323,19 +308,10 @@ class PlotFrame::PlotCanvas : public wxPanel
          const auto &points          = projected[idx];
          if (filteredHistory.empty())
             continue;
-         if (gc) {
-            gc->SetPen(wxPen(entry.colour, 2));
-            gc->SetBrush(wxBrush(entry.colour));
-            for (const wxPoint2DDouble &point : points) {
-               gc->DrawEllipse(point.m_x - 2.0, point.m_y - 2.0, 4.0, 4.0);
-            }
-         } else {
-            dc.SetPen(wxPen(entry.colour, 2));
-            dc.SetBrush(wxBrush(entry.colour));
-            for (const wxPoint2DDouble &point : points) {
-               const wxPoint rounded(static_cast<int>(std::lround(point.m_x)), static_cast<int>(std::lround(point.m_y)));
-               dc.DrawCircle(rounded, 2);
-            }
+         gc->SetPen(wxPen(entry.colour, 2));
+         gc->SetBrush(wxBrush(entry.colour));
+         for (const wxPoint2DDouble &point : points) {
+            gc->DrawEllipse(point.m_x - 2.0, point.m_y - 2.0, 4.0, 4.0);
          }
       }
 
