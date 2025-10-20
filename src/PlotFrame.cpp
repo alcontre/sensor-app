@@ -190,7 +190,7 @@ class PlotFrame::PlotCanvas : public wxPanel
          maxValue += 1.0;
       }
 
-      auto plotEnd = windowDuration ? now : latest;
+      auto plotEnd = windowDuration ? now : std::max(now, latest);
       if (windowDuration && latest > plotEnd)
          plotEnd = latest;
 
