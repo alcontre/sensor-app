@@ -17,6 +17,8 @@ struct PlotSeries
    std::vector<std::string> pathSegments;
    std::string displayPath;
    wxColour colour;
+   wxPen pen;
+   wxBrush brush;
 };
 
 enum class TimeRange

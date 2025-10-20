@@ -212,25 +212,23 @@ class PlotFrame::PlotCanvas : public wxPanel
          return wxPoint2DDouble(x, y);
       };
 
-      std::vector<std::vector<wxPoint2DDouble>> projected(series.size());
-      for (size_t idx = 0; idx < series.size(); ++idx) {
-         const auto &filteredHistory = filtered[idx];
-         auto &points                = projected[idx];
-         points.reserve(filteredHistory.size());
-         for (const TimedSample *sample : filteredHistory) {
-            points.push_back(toPoint(*sample));
-         }
-      }
-
-      dc.SetPen(wxPen(gridColour, 1, wxPENSTYLE_DOT));
+      wxGraphicsPath gridPath = gc->CreatePath();
+      const double leftX      = static_cast<double>(leftMargin);
+      const double rightX     = static_cast<double>(leftMargin + plotWidth);
+      const double topY       = static_cast<double>(plotTop);
+      const double bottomY    = static_cast<double>(origin.y);
       for (int i = 0; i <= 5; ++i) {
-         const int y = origin.y - (plotHeight * i) / 5;
-         dc.DrawLine(leftMargin, y, leftMargin + plotWidth, y);
+         const double y = bottomY - (static_cast<double>(plotHeight) * i) / 5.0;
+         gridPath.MoveToPoint(leftX, y);
+         gridPath.AddLineToPoint(rightX, y);
       }
       for (int i = 0; i <= 5; ++i) {
-         const int x = leftMargin + (plotWidth * i) / 5;
-         dc.DrawLine(x, origin.y, x, plotTop);
+         const double x = leftX + (static_cast<double>(plotWidth) * i) / 5.0;
+         gridPath.MoveToPoint(x, bottomY);
+         gridPath.AddLineToPoint(x, topY);
       }
+      gc->SetPen(wxPen(gridColour, 1, wxPENSTYLE_DOT));
+      gc->StrokePath(gridPath);
 
       auto formatSeconds = [](double seconds) {
          if (seconds < 1.0)
@@ -278,40 +276,36 @@ class PlotFrame::PlotCanvas : public wxPanel
          dc.DrawText(label, wxPoint(x - textSz.GetWidth() / 2, origin.y + 4));
       }
 
-      for (size_t idx = 0; idx < series.size(); ++idx) {
-         const auto &entry           = series[idx];
-         const auto &filteredHistory = filtered[idx];
-         const auto &points          = projected[idx];
-         if (filteredHistory.size() < 2)
-            continue;
-
-         gc->SetPen(wxPen(entry.colour, 2));
-         bool firstPoint = true;
-         double prevX    = 0.0;
-         double prevY    = 0.0;
-         for (const wxPoint2DDouble &point : points) {
-            if (firstPoint) {
-               prevX      = point.m_x;
-               prevY      = point.m_y;
-               firstPoint = false;
-               continue;
-            }
-            gc->StrokeLine(prevX, prevY, point.m_x, point.m_y);
-            prevX = point.m_x;
-            prevY = point.m_y;
-         }
-      }
+      // Reuse a scratch buffer so we only allocate when a series exceeds prior size.
+      std::vector<wxPoint2DDouble> pointCache;
+      pointCache.reserve(128);
+      const double markerRadius   = 2.0;
+      const double markerDiameter = markerRadius * 2.0;
 
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const auto &entry           = series[idx];
          const auto &filteredHistory = filtered[idx];
-         const auto &points          = projected[idx];
          if (filteredHistory.empty())
             continue;
-         gc->SetPen(wxPen(entry.colour, 2));
-         gc->SetBrush(wxBrush(entry.colour));
-         for (const wxPoint2DDouble &point : points) {
-            gc->DrawEllipse(point.m_x - 2.0, point.m_y - 2.0, 4.0, 4.0);
+
+         pointCache.clear();
+         pointCache.reserve(filteredHistory.size());
+         for (const TimedSample *sample : filteredHistory) {
+            pointCache.push_back(toPoint(*sample));
+         }
+
+         gc->SetPen(entry.pen);
+         if (pointCache.size() >= 2) {
+            wxGraphicsPath seriesPath = gc->CreatePath();
+            seriesPath.MoveToPoint(pointCache.front().m_x, pointCache.front().m_y);
+            for (size_t i = 1; i < pointCache.size(); ++i)
+               seriesPath.AddLineToPoint(pointCache[i].m_x, pointCache[i].m_y);
+            gc->StrokePath(seriesPath);
+         }
+
+         gc->SetBrush(entry.brush);
+         for (const wxPoint2DDouble &point : pointCache) {
+            gc->DrawEllipse(point.m_x - markerRadius, point.m_y - markerRadius, markerDiameter, markerDiameter);
          }
       }
 
@@ -430,6 +424,10 @@ bool PlotFrame::AppendSeries(Node *node)
    series.pathSegments = std::move(pathSegments);
    series.displayPath  = node->GetFullPath();
    series.colour       = PickColour();
+   series.pen          = wxPen(series.colour, 2);
+   series.pen.SetCap(wxCAP_ROUND);
+   series.pen.SetJoin(wxJOIN_ROUND);
+   series.brush = wxBrush(series.colour);
    m_series.push_back(std::move(series));
    return true;
 }
