@@ -45,6 +45,7 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       const auto &series        = m_owner->GetSeries();
       const auto windowDuration = m_owner->GetTimeRangeDuration();
+      const auto now            = std::chrono::steady_clock::now();
 
       if (series.empty()) {
          dc.SetTextForeground(textColour);
@@ -126,7 +127,7 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       auto windowStart = std::chrono::steady_clock::time_point::min();
       if (windowDuration)
-         windowStart = latestOverall - *windowDuration;
+         windowStart = now - *windowDuration;
 
       bool hasData    = false;
       auto earliest   = std::chrono::steady_clock::time_point::max();
@@ -179,12 +180,17 @@ class PlotFrame::PlotCanvas : public wxPanel
          maxValue += 1.0;
       }
 
-      auto plotStart = windowDuration ? (latestOverall - *windowDuration) : earliest;
-      if (plotStart > latest)
-         plotStart = latest;
-      if (plotStart > earliest && !windowDuration)
+      auto plotEnd = windowDuration ? now : latest;
+      if (windowDuration && latest > plotEnd)
+         plotEnd = latest;
+
+      auto plotStart = windowDuration ? (plotEnd - *windowDuration) : earliest;
+      if (!windowDuration && plotStart > earliest)
          plotStart = earliest;
-      const double timeRange  = std::max(1e-9, std::chrono::duration<double>(latest - plotStart).count());
+      if (plotStart > plotEnd)
+         plotStart = plotEnd - std::chrono::milliseconds(1);
+
+      const double timeRange  = std::max(1e-9, std::chrono::duration<double>(plotEnd - plotStart).count());
       const double valueRange = std::max(1e-9, maxValue - minValue);
 
       auto toPoint = [&](const TimedSample &sample) {
