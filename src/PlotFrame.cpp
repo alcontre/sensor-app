@@ -8,10 +8,13 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <wx/dcbuffer.h>
+#include <wx/geometry.h>
+#include <wx/graphics.h>
 
 class PlotFrame::PlotCanvas : public wxPanel
 {
@@ -42,6 +45,12 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       dc.SetBackground(wxBrush(background));
       dc.Clear();
+
+      std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+      if (gc) {
+         gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
+         gc->SetInterpolationQuality(wxINTERPOLATION_DEFAULT);
+      }
 
       const auto &series        = m_owner->GetSeries();
       const auto windowDuration = m_owner->GetTimeRangeDuration();
@@ -197,10 +206,20 @@ class PlotFrame::PlotCanvas : public wxPanel
          const double tSeconds = std::chrono::duration<double>(sample.timestamp - plotStart).count();
          const double xNorm    = tSeconds / timeRange;
          const double yNorm    = (sample.value - minValue) / valueRange;
-         const int x           = origin.x + static_cast<int>(xNorm * plotWidth);
-         const int y           = origin.y - static_cast<int>(yNorm * plotHeight);
-         return wxPoint(x, y);
+         const double x        = origin.x + xNorm * plotWidth;
+         const double y        = origin.y - yNorm * plotHeight;
+         return wxPoint2DDouble(x, y);
       };
+
+      std::vector<std::vector<wxPoint2DDouble>> projected(series.size());
+      for (size_t idx = 0; idx < series.size(); ++idx) {
+         const auto &filteredHistory = filtered[idx];
+         auto &points                = projected[idx];
+         points.reserve(filteredHistory.size());
+         for (const TimedSample *sample : filteredHistory) {
+            points.push_back(toPoint(*sample));
+         }
+      }
 
       dc.SetPen(wxPen(gridColour, 1, wxPENSTYLE_DOT));
       for (int i = 0; i <= 5; ++i) {
@@ -261,35 +280,62 @@ class PlotFrame::PlotCanvas : public wxPanel
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const auto &entry           = series[idx];
          const auto &filteredHistory = filtered[idx];
+         const auto &points          = projected[idx];
          if (filteredHistory.size() < 2)
             continue;
 
-         dc.SetPen(wxPen(entry.colour, 2));
-
-         bool firstPoint = true;
-         wxPoint previous;
-         for (const TimedSample *sample : filteredHistory) {
-            const wxPoint point = toPoint(*sample);
-            if (firstPoint) {
-               previous   = point;
-               firstPoint = false;
-               continue;
+         if (gc) {
+            gc->SetPen(wxPen(entry.colour, 2));
+            bool firstPoint = true;
+            double prevX    = 0.0;
+            double prevY    = 0.0;
+            for (const wxPoint2DDouble &point : points) {
+               if (firstPoint) {
+                  prevX      = point.m_x;
+                  prevY      = point.m_y;
+                  firstPoint = false;
+                  continue;
+               }
+               gc->StrokeLine(prevX, prevY, point.m_x, point.m_y);
+               prevX = point.m_x;
+               prevY = point.m_y;
             }
-            dc.DrawLine(previous, point);
-            previous = point;
+         } else {
+            dc.SetPen(wxPen(entry.colour, 2));
+            bool firstPoint = true;
+            wxPoint previous;
+            for (const wxPoint2DDouble &point : points) {
+               const wxPoint rounded(static_cast<int>(std::lround(point.m_x)), static_cast<int>(std::lround(point.m_y)));
+               if (firstPoint) {
+                  previous   = rounded;
+                  firstPoint = false;
+                  continue;
+               }
+               dc.DrawLine(previous, rounded);
+               previous = rounded;
+            }
          }
       }
 
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const auto &entry           = series[idx];
          const auto &filteredHistory = filtered[idx];
+         const auto &points          = projected[idx];
          if (filteredHistory.empty())
             continue;
-         dc.SetPen(wxPen(entry.colour, 2));
-         dc.SetBrush(wxBrush(entry.colour));
-         for (const TimedSample *sample : filteredHistory) {
-            const wxPoint point = toPoint(*sample);
-            dc.DrawCircle(point, 2);
+         if (gc) {
+            gc->SetPen(wxPen(entry.colour, 2));
+            gc->SetBrush(wxBrush(entry.colour));
+            for (const wxPoint2DDouble &point : points) {
+               gc->DrawEllipse(point.m_x - 2.0, point.m_y - 2.0, 4.0, 4.0);
+            }
+         } else {
+            dc.SetPen(wxPen(entry.colour, 2));
+            dc.SetBrush(wxBrush(entry.colour));
+            for (const wxPoint2DDouble &point : points) {
+               const wxPoint rounded(static_cast<int>(std::lround(point.m_x)), static_cast<int>(std::lround(point.m_y)));
+               dc.DrawCircle(rounded, 2);
+            }
          }
       }
 

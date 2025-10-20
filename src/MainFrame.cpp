@@ -58,7 +58,7 @@ MainFrame::MainFrame() :
    }
 
    // Start automatic data generation (will run indefinitely)
-   // StartDataTestGeneration();
+   StartDataTestGeneration();
    m_ageTimer.Start(50);
 }
 
