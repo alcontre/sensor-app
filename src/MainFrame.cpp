@@ -9,6 +9,7 @@
 #include <functional>
 #include <vector>
 
+#include <wx/accel.h>
 #include <wx/textdlg.h>
 #include <wx/window.h>
 
@@ -41,6 +42,7 @@ MainFrame::MainFrame() :
    CreateMenuBar();
    SetupStatusBar();
    CreateSensorTreeView();
+   SetupAccelerators();
    BindEvents();
 
    m_plotManager = std::make_unique<PlotManager>(this, m_treeModel);
@@ -71,6 +73,9 @@ void MainFrame::CreateMenuBar()
    menuFile->AppendCheckItem(ID_ToggleDataGen, "&Toggle Data Generator",
        "Enable or disable automatic sensor data generation");
    menuFile->AppendSeparator();
+   menuFile->Append(ID_RotateLog, "&Rotate Log\tCtrl-Shift-L",
+       "Finish the current log file and start a new one");
+   menuFile->AppendSeparator();
    menuFile->Append(wxID_EXIT);
 
    wxMenuBar *menuBar = new wxMenuBar;
@@ -80,6 +85,8 @@ void MainFrame::CreateMenuBar()
    wxMenu *menuView = new wxMenu;
    menuView->Append(ID_ExpandAll, "&Expand All\tCtrl-E", "Expand all nodes in the tree view");
    menuView->Append(ID_CollapseAll, "&Collapse All\tCtrl-Shift-E", "Collapse all nodes in the tree view");
+   menuView->AppendSeparator();
+   menuView->Append(ID_ClearTree, "&Clear Entries\tCtrl-Shift-C", "Remove all sensor data from the tree view");
    menuBar->Append(menuView, "&View");
 
    SetMenuBar(menuBar);
@@ -166,8 +173,9 @@ void MainFrame::CreateSensorTreeView()
    m_showFailuresOnlyCheck->SetToolTip("Only display sensors currently in a failed state");
 
    // Add sensor filter text box
-   m_filterCtrl = new wxTextCtrl(panel, wxID_ANY);
-   m_filterCtrl->SetHint("Type to filter sensors...");
+   // Process Enter locally so the key does not bubble to menu accelerators (e.g. About on Windows).
+   m_filterCtrl = new wxTextCtrl(panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+   m_filterCtrl->SetHint("Type to filter sensors... (Ctrl+F)");
 
    filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL);
    filterSizer->Add(m_rotateLogButton, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
@@ -194,6 +202,9 @@ void MainFrame::BindEvents()
    Bind(wxEVT_SENSOR_DATA_SAMPLE, &MainFrame::OnSensorData, this);
    Bind(wxEVT_MENU, &MainFrame::OnExpandAll, this, ID_ExpandAll);
    Bind(wxEVT_MENU, &MainFrame::OnCollapseAll, this, ID_CollapseAll);
+   Bind(wxEVT_MENU, &MainFrame::OnRotateLog, this, ID_RotateLog);
+   Bind(wxEVT_MENU, &MainFrame::OnClearTree, this, ID_ClearTree);
+   Bind(wxEVT_MENU, &MainFrame::OnFocusFilter, this, ID_FocusFilter);
    // Toggle expand/collapse on double-click (item activated)
    Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &MainFrame::OnItemActivated, this);
    Bind(wxEVT_DATAVIEW_ITEM_EXPANDED, &MainFrame::OnItemExpanded, this);
@@ -207,6 +218,7 @@ void MainFrame::BindEvents()
    Bind(wxEVT_MENU, &MainFrame::OnSendToNewPlot, this, ID_SendToNewPlot);
 
    m_filterCtrl->Bind(wxEVT_TEXT, &MainFrame::OnFilterTextChanged, this);
+   m_filterCtrl->Bind(wxEVT_TEXT_ENTER, &MainFrame::OnFilterEnter, this);
 
    m_showFailuresOnlyCheck->Bind(wxEVT_CHECKBOX, &MainFrame::OnShowFailuresOnly, this);
 
@@ -503,6 +515,36 @@ void MainFrame::ClearDynamicPlotMenuItems()
       wxWindow::UnreserveControlId(entry.first);
    }
    m_plotMenuIdToName.clear();
+}
+
+void MainFrame::SetupAccelerators()
+{
+   std::vector<wxAcceleratorEntry> entries;
+
+   auto addShortcut = [&](int flags, int keyCode, int commandId) {
+      wxAcceleratorEntry entry;
+      entry.Set(flags, keyCode, commandId);
+      entries.push_back(entry);
+   };
+
+   addShortcut(wxACCEL_CMD, static_cast<int>('F'), ID_FocusFilter);
+
+   if (!entries.empty()) {
+      wxAcceleratorTable table(static_cast<int>(entries.size()), entries.data());
+      SetAcceleratorTable(table);
+   }
+}
+
+void MainFrame::OnFocusFilter(wxCommandEvent &WXUNUSED(event))
+{
+   m_filterCtrl->SetFocus();
+   m_filterCtrl->SelectAll();
+}
+
+void MainFrame::OnFilterEnter(wxCommandEvent &event)
+{
+   event.StopPropagation();
+   event.Skip(false);
 }
 
 std::vector<Node *> MainFrame::CollectPlotEligibleNodes(wxString &messageOut) const

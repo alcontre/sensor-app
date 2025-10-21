@@ -40,7 +40,10 @@ enum
 
    // Controls
    ID_RotateLog,
-   ID_ClearTree
+   ID_ClearTree,
+
+   // Command helpers
+   ID_FocusFilter
 };
 
 class MainFrame : public wxFrame
@@ -98,6 +101,8 @@ class MainFrame : public wxFrame
    void OnItemCollapsed(wxDataViewEvent &event);
    void OnRotateLog(wxCommandEvent &event);
    void OnClearTree(wxCommandEvent &event);
+   void OnFocusFilter(wxCommandEvent &event);
+   void OnFilterEnter(wxCommandEvent &event);
    void StartDataTestGeneration();
    void StopDataTestGeneration();
    void RestoreExpansionState();
@@ -107,6 +112,7 @@ class MainFrame : public wxFrame
    std::vector<Node *> CollectPlotEligibleNodes(wxString &messageOut) const;
    void RotateLogFile(const wxString &reason = wxString());
    void CloseLogFile(const wxString &reason = wxString());
+   void SetupAccelerators();
 
    std::unordered_set<const Node *> m_expandedNodes;
    std::unique_ptr<PlotManager> m_plotManager;
