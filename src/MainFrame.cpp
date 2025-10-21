@@ -7,14 +7,28 @@
 
 #include <algorithm>
 #include <functional>
+#include <string>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <wx/accel.h>
+#include <wx/fileconf.h>
+#include <wx/filedlg.h>
+#include <wx/filename.h>
 #include <wx/textctrl.h>
 #include <wx/textdlg.h>
 #include <wx/window.h>
 
 namespace {
+std::string ToUtf8(const wxString &value)
+{
+   const wxScopedCharBuffer buffer = value.ToUTF8();
+   if (!buffer)
+      return std::string();
+   return std::string(buffer.data(), buffer.length());
+}
+
 constexpr int STATUS_FIELD_NET_STATUS    = 0;
 constexpr int STATUS_FIELD_LOG_INFO      = 1;
 constexpr int STATUS_FIELD_MESSAGE_COUNT = 2;
@@ -76,6 +90,11 @@ void MainFrame::CreateMenuBar()
    menuFile->AppendSeparator();
    menuFile->Append(ID_RotateLog, "&Rotate Log\tAlt-L",
        "Finish the current log file and start a new one");
+   menuFile->AppendSeparator();
+   menuFile->Append(ID_SavePlotConfig, "&Save Plot Configuration...",
+       "Write the open plots and their assigned sensors to a config file");
+   menuFile->Append(ID_LoadPlotConfig, "&Load Plot Configuration...",
+       "Open plots based on a previously saved configuration");
    menuFile->AppendSeparator();
    menuFile->Append(wxID_EXIT);
 
@@ -204,6 +223,8 @@ void MainFrame::BindEvents()
    Bind(wxEVT_MENU, &MainFrame::OnExpandAll, this, ID_ExpandAll);
    Bind(wxEVT_MENU, &MainFrame::OnCollapseAll, this, ID_CollapseAll);
    Bind(wxEVT_MENU, &MainFrame::OnRotateLog, this, ID_RotateLog);
+   Bind(wxEVT_MENU, &MainFrame::OnSavePlotConfig, this, ID_SavePlotConfig);
+   Bind(wxEVT_MENU, &MainFrame::OnLoadPlotConfig, this, ID_LoadPlotConfig);
    Bind(wxEVT_MENU, &MainFrame::OnClearTree, this, ID_ClearTree);
    Bind(wxEVT_MENU, &MainFrame::OnFocusFilter, this, ID_FocusFilter);
    // Toggle expand/collapse on double-click (item activated)
@@ -636,6 +657,173 @@ void MainFrame::OnClearTree(wxCommandEvent &WXUNUSED(event))
    m_treeModel->Clear();
    m_expandedNodes.clear();
    m_treeCtrl->Thaw();
+}
+
+void MainFrame::OnSavePlotConfig(wxCommandEvent &WXUNUSED(event))
+{
+   if (!m_plotManager)
+      return;
+
+   const auto configs = m_plotManager->GetPlotConfigurations();
+   if (configs.empty()) {
+      wxMessageBox("There are no plots to save.", "Save Plot Configuration", wxOK | wxICON_INFORMATION, this);
+      return;
+   }
+
+   wxFileDialog dialog(this, "Save Plot Configuration", wxEmptyString, "plot-config.ini",
+       "Config files (*.ini)|*.ini|All files (*.*)|*.*", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+   if (dialog.ShowModal() != wxID_OK)
+      return;
+
+   wxFileName fileName(dialog.GetPath());
+   if (fileName.GetExt().IsEmpty())
+      fileName.SetExt("ini");
+
+   wxFileConfig fileConfig(wxEmptyString, wxEmptyString, fileName.GetFullPath(), wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+   fileConfig.DeleteAll();
+   fileConfig.SetPath("/");
+
+   std::unordered_set<std::string> usedSections;
+   for (size_t idx = 0; idx < configs.size(); ++idx) {
+      const auto &entry = configs[idx];
+      wxString section  = entry.name;
+      section.Trim(true);
+      section.Trim(false);
+      if (section.IsEmpty())
+         section = wxString::Format("Plot_%zu", idx + 1);
+
+      const wxUniChar forbidden[] = {'/', '\\', '[', ']', ':', ';', '='};
+      for (wxUniChar ch : forbidden) {
+         wxString target(ch);
+         section.Replace(target, "_", true);
+      }
+
+      if (section.IsEmpty())
+         section = wxString::Format("Plot_%zu", idx + 1);
+
+      wxString candidate = section;
+      int suffix         = 1;
+      std::string key    = ToUtf8(candidate);
+      if (key.empty())
+         key = "section_" + std::to_string(idx);
+      while (usedSections.count(key) > 0) {
+         candidate = section + wxString::Format("_%d", suffix++);
+         key       = ToUtf8(candidate);
+         if (key.empty())
+            key = "section_" + std::to_string(idx) + "_" + std::to_string(suffix);
+      }
+      usedSections.insert(key);
+
+      fileConfig.SetPath("/" + candidate);
+      fileConfig.Write("Title", entry.name);
+      for (size_t sensorIdx = 0; sensorIdx < entry.sensorPaths.size(); ++sensorIdx) {
+         const std::string &path = entry.sensorPaths[sensorIdx];
+         const wxString value    = wxString::FromUTF8(path.c_str());
+         fileConfig.Write(wxString::Format("Sensor%zu", sensorIdx + 1), value);
+      }
+      fileConfig.SetPath("..");
+   }
+
+   fileConfig.Flush();
+
+   wxLogMessage("Plot configuration saved to %s.", fileName.GetFullPath());
+}
+
+void MainFrame::OnLoadPlotConfig(wxCommandEvent &WXUNUSED(event))
+{
+   if (!m_plotManager)
+      return;
+
+   wxFileDialog dialog(this, "Load Plot Configuration", wxEmptyString, wxEmptyString,
+       "Config files (*.ini)|*.ini|All files (*.*)|*.*", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+   if (dialog.ShowModal() != wxID_OK)
+      return;
+
+   wxFileConfig fileConfig(wxEmptyString, wxEmptyString, dialog.GetPath(), wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+   fileConfig.SetPath("/");
+
+   wxString group;
+   long groupCookie = 0;
+   std::vector<PlotManager::PlotConfiguration> configs;
+
+   bool hasGroup = fileConfig.GetFirstGroup(group, groupCookie);
+   while (hasGroup) {
+      fileConfig.SetPath("/" + group);
+
+      wxString title;
+      if (!fileConfig.Read("Title", &title))
+         title = group;
+      title.Trim(true);
+      title.Trim(false);
+
+      std::vector<std::pair<int, std::string>> sensors;
+      wxString entry;
+      long entryCookie = 0;
+      bool hasEntry    = fileConfig.GetFirstEntry(entry, entryCookie);
+      while (hasEntry) {
+         if (entry.CmpNoCase("Title") != 0) {
+            wxString value;
+            if (fileConfig.Read(entry, &value)) {
+               long order = static_cast<long>(sensors.size());
+               if (entry.StartsWith("Sensor")) {
+                  wxString suffix = entry.Mid(6);
+                  if (!suffix.ToLong(&order))
+                     order = static_cast<long>(sensors.size());
+               }
+               const wxScopedCharBuffer buffer = value.ToUTF8();
+               if (buffer && buffer.length() > 0) {
+                  sensors.emplace_back(static_cast<int>(order), std::string(buffer.data(), buffer.length()));
+               }
+            }
+         }
+         hasEntry = fileConfig.GetNextEntry(entry, entryCookie);
+      }
+
+      std::sort(sensors.begin(), sensors.end(),
+          [](const auto &lhs, const auto &rhs) {
+             return lhs.first < rhs.first;
+          });
+
+      PlotManager::PlotConfiguration cfg;
+      cfg.name = title;
+      for (auto &sensor : sensors) {
+         if (!sensor.second.empty())
+            cfg.sensorPaths.push_back(std::move(sensor.second));
+      }
+      configs.push_back(std::move(cfg));
+
+      fileConfig.SetPath("..");
+      hasGroup = fileConfig.GetNextGroup(group, groupCookie);
+   }
+
+   if (configs.empty()) {
+      wxMessageBox("No plot sections found in the selected configuration.", "Load Plot Configuration", wxOK | wxICON_INFORMATION, this);
+      return;
+   }
+
+   if (!m_plotManager->GetPlotNames().empty()) {
+      const int response = wxMessageBox("Loading a configuration will close all existing plots. Continue?", "Load Plot Configuration",
+          wxYES_NO | wxICON_QUESTION, this);
+      if (response != wxYES)
+         return;
+      m_plotManager->CloseAllPlots();
+   }
+
+   std::vector<wxString> warnings;
+   const size_t created = m_plotManager->RestorePlotConfigurations(configs, warnings);
+
+   if (created == 0) {
+      wxMessageBox("No plots were created from the configuration.", "Load Plot Configuration", wxOK | wxICON_WARNING, this);
+   } else {
+      wxLogMessage("Loaded %zu plot(s) from configuration.", created);
+   }
+
+   if (!warnings.empty()) {
+      wxString message = "Some sensors could not be restored:\n";
+      for (const wxString &line : warnings)
+         message += "- " + line + "\n";
+      wxMessageBox(message, "Load Plot Configuration", wxOK | wxICON_INFORMATION, this);
+   }
 }
 
 void MainFrame::OnConnectionStatus(wxThreadEvent &event)

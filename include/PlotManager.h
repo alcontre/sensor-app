@@ -20,6 +20,13 @@ class PlotManager
    PlotFrame *CreatePlot(const wxString &name, const std::vector<Node *> &nodes);
    bool AddSensorsToPlot(const wxString &name, const std::vector<Node *> &nodes);
    std::vector<wxString> GetPlotNames() const;
+   struct PlotConfiguration
+   {
+      wxString name;
+      std::vector<std::string> sensorPaths;
+   };
+   std::vector<PlotConfiguration> GetPlotConfigurations() const;
+   size_t RestorePlotConfigurations(const std::vector<PlotConfiguration> &configs, std::vector<wxString> &warnings);
    void CloseAllPlots();
 
  private:
