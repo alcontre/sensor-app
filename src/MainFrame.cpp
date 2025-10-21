@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <wx/accel.h>
+#include <wx/textctrl.h>
 #include <wx/textdlg.h>
 #include <wx/window.h>
 
@@ -394,8 +395,26 @@ void MainFrame::OnSendToNewPlot(wxCommandEvent &WXUNUSED(event))
       return;
    }
 
+   // Find next unique plot name
+   unsigned long long plot_idx = 0;
+   wxString defaultPlotName;
+   while (true) {
+      defaultPlotName = wxString::Format("Plot %llu", plot_idx);
+      if (!m_plotManager->HasPlot(defaultPlotName))
+         break;
+      ++plot_idx;
+   }
    wxTextEntryDialog dialog(this, "Enter a name for the new plot:", "Create Plot");
-   dialog.SetValue("Sensor Plot");
+   dialog.SetValue(defaultPlotName);
+   // Automatically select the text for easy replacement
+   const wxWindowList &children = dialog.GetChildren();
+   for (wxWindowList::compatibility_iterator node = children.GetFirst(); node; node = node->GetNext()) {
+      wxWindow *child = node->GetData();
+      if (auto *textCtrl = wxDynamicCast(child, wxTextCtrl)) {
+         textCtrl->SelectAll();
+         break;
+      }
+   }
    if (dialog.ShowModal() != wxID_OK)
       return;
 
