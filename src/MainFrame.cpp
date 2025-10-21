@@ -73,7 +73,7 @@ void MainFrame::CreateMenuBar()
    menuFile->AppendCheckItem(ID_ToggleDataGen, "&Toggle Data Generator",
        "Enable or disable automatic sensor data generation");
    menuFile->AppendSeparator();
-   menuFile->Append(ID_RotateLog, "&Rotate Log\tCtrl-Shift-L",
+   menuFile->Append(ID_RotateLog, "&Rotate Log\tAlt-L",
        "Finish the current log file and start a new one");
    menuFile->AppendSeparator();
    menuFile->Append(wxID_EXIT);
@@ -86,7 +86,7 @@ void MainFrame::CreateMenuBar()
    menuView->Append(ID_ExpandAll, "&Expand All\tCtrl-E", "Expand all nodes in the tree view");
    menuView->Append(ID_CollapseAll, "&Collapse All\tCtrl-Shift-E", "Collapse all nodes in the tree view");
    menuView->AppendSeparator();
-   menuView->Append(ID_ClearTree, "&Clear Entries\tCtrl-Shift-C", "Remove all sensor data from the tree view");
+   menuView->Append(ID_ClearTree, "&Clear Entries\tAlt-C", "Remove all sensor data from the tree view");
    menuBar->Append(menuView, "&View");
 
    SetMenuBar(menuBar);
