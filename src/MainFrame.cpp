@@ -88,7 +88,7 @@ void MainFrame::CreateMenuBar()
    menuFile->AppendCheckItem(ID_ToggleDataGen, "&Toggle Data Generator",
        "Enable or disable automatic sensor data generation");
    menuFile->AppendSeparator();
-   menuFile->Append(ID_RotateLog, "&Rotate Log\tAlt-L",
+   menuFile->Append(ID_RotateLog, "&Rotate Log",
        "Finish the current log file and start a new one");
    menuFile->AppendSeparator();
    menuFile->Append(ID_SavePlotConfig, "&Save Plot Configuration...",
@@ -106,7 +106,7 @@ void MainFrame::CreateMenuBar()
    menuView->Append(ID_ExpandAll, "&Expand All\tCtrl-E", "Expand all nodes in the tree view");
    menuView->Append(ID_CollapseAll, "&Collapse All\tCtrl-Shift-E", "Collapse all nodes in the tree view");
    menuView->AppendSeparator();
-   menuView->Append(ID_ClearTree, "&Clear Entries\tAlt-C", "Remove all sensor data from the tree view");
+   menuView->Append(ID_ClearTree, "&Clear Entries", "Remove all sensor data from the tree view");
    menuBar->Append(menuView, "&View");
 
    SetMenuBar(menuBar);
@@ -183,13 +183,13 @@ void MainFrame::CreateSensorTreeView()
    UpdateNetworkIndicator(*wxYELLOW, "Network idle");
    // TODO - click connect indicator to reset connection (not implemented)
 
-   m_rotateLogButton = new wxButton(panel, ID_RotateLog, "Rotate Log");
+   m_rotateLogButton = new wxButton(panel, ID_RotateLog, "&Rotate Log");
    m_rotateLogButton->SetToolTip("Finish the current log file and start a new one");
 
-   m_clearTreeButton = new wxButton(panel, ID_ClearTree, "Clear");
+   m_clearTreeButton = new wxButton(panel, ID_ClearTree, "&Clear");
    m_clearTreeButton->SetToolTip("Remove all sensor data from the tree view");
 
-   m_showFailuresOnlyCheck = new wxCheckBox(panel, wxID_ANY, "Show failures only");
+   m_showFailuresOnlyCheck = new wxCheckBox(panel, wxID_ANY, "&Show failures only");
    m_showFailuresOnlyCheck->SetToolTip("Only display sensors currently in a failed state");
 
    // Add sensor filter text box
