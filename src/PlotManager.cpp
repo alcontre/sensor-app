@@ -41,7 +41,6 @@ PlotManager::PlotManager(wxWindow *parent, SensorTreeModel *model) :
     m_model(model),
     m_plots()
 {
-   (void)m_model; // currently unused but kept for future enhancements
 }
 
 PlotManager::~PlotManager()
@@ -126,8 +125,6 @@ std::vector<PlotManager::PlotConfiguration> PlotManager::GetPlotConfigurations()
 size_t PlotManager::RestorePlotConfigurations(const std::vector<PlotConfiguration> &configs, std::vector<wxString> &warnings)
 {
    size_t plotsCreated = 0;
-   if (!m_model)
-      return plotsCreated;
 
    for (const auto &cfg : configs) {
       if (cfg.sensorPaths.empty()) {
