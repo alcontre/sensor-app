@@ -4,6 +4,8 @@ run/
 .vscode/
 .cache/
 
+*json
+
 # Backup files
 **/*.swo
 **/*.swp
