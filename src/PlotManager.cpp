@@ -103,14 +103,12 @@ std::vector<PlotManager::PlotConfiguration> PlotManager::GetPlotConfigurations()
    configs.reserve(m_plots.size());
    for (const auto &entry : m_plots) {
       PlotConfiguration cfg;
-      cfg.name         = entry.second.displayName;
-      PlotFrame *frame = entry.second.frame;
-      if (frame) {
-         const auto &series = frame->GetSeries();
-         cfg.sensorPaths.reserve(series.size());
-         for (const auto &plotSeries : series) {
-            cfg.sensorPaths.push_back(plotSeries.displayPath);
-         }
+      cfg.name               = entry.second.displayName;
+      const PlotFrame *frame = entry.second.frame;
+      const auto &series     = frame->GetSeries();
+      cfg.sensorPaths.reserve(series.size());
+      for (const auto &plotSeries : series) {
+         cfg.sensorPaths.push_back(plotSeries.displayPath);
       }
       configs.push_back(std::move(cfg));
    }

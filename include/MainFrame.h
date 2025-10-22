@@ -42,8 +42,8 @@ enum
    ID_RotateLog,
    ID_ClearTree,
 
-  ID_SavePlotConfig,
-  ID_LoadPlotConfig,
+   ID_SavePlotConfig,
+   ID_LoadPlotConfig,
 
    // Command helpers
    ID_FocusFilter
@@ -104,8 +104,8 @@ class MainFrame : public wxFrame
    void OnItemCollapsed(wxDataViewEvent &event);
    void OnRotateLog(wxCommandEvent &event);
    void OnClearTree(wxCommandEvent &event);
-  void OnSavePlotConfig(wxCommandEvent &event);
-  void OnLoadPlotConfig(wxCommandEvent &event);
+   void OnSavePlotConfig(wxCommandEvent &event);
+   void OnLoadPlotConfig(wxCommandEvent &event);
    void OnFocusFilter(wxCommandEvent &event);
    void OnFilterEnter(wxCommandEvent &event);
    void StartDataTestGeneration();
