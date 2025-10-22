@@ -661,9 +661,6 @@ void MainFrame::OnClearTree(wxCommandEvent &WXUNUSED(event))
 
 void MainFrame::OnSavePlotConfig(wxCommandEvent &WXUNUSED(event))
 {
-   if (!m_plotManager)
-      return;
-
    const auto configs = m_plotManager->GetPlotConfigurations();
    if (configs.empty()) {
       wxMessageBox("There are no plots to save.", "Save Plot Configuration", wxOK | wxICON_INFORMATION, this);
