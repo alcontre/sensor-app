@@ -5,11 +5,6 @@
 #include <sstream>
 #include <vector>
 
-SensorDataJsonWriter::SensorDataJsonWriter() :
-    SensorDataJsonWriter(GenerateTimestampedFilename())
-{
-}
-
 SensorDataJsonWriter::SensorDataJsonWriter(const std::string &filePath) :
     m_stream(filePath, std::ios::out | std::ios::trunc),
     m_firstEntry(true),

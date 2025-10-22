@@ -12,7 +12,6 @@ class SensorDataJsonWriter
 {
  public:
    // Default constructor uses an internal default filename.
-   SensorDataJsonWriter();
    explicit SensorDataJsonWriter(const std::string &filePath);
    ~SensorDataJsonWriter();
 
