@@ -38,6 +38,8 @@ class PlotFrame::PlotCanvas : public wxPanel
    void OnPaint(wxPaintEvent &WXUNUSED(event))
    {
       wxAutoBufferedPaintDC dc(this);
+
+      // Configure drawing surface and colours for dark-themed chart.
       const wxColour background(18, 22, 30);
       const wxColour textColour(235, 238, 245);
       const wxColour gridColour(70, 78, 92);
@@ -53,17 +55,12 @@ class PlotFrame::PlotCanvas : public wxPanel
       gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
       gc->SetInterpolationQuality(wxINTERPOLATION_DEFAULT);
 
-      const auto &series        = m_owner->GetSeries();
-      const auto windowDuration = m_owner->GetTimeRangeDuration();
-      const auto now            = std::chrono::steady_clock::now();
-
+      const auto &series = m_owner->GetSeries();
       if (series.empty()) {
          dc.SetTextForeground(textColour);
          dc.DrawText("No sensors selected for plotting.", wxPoint(10, 10));
          return;
       }
-
-      SensorTreeModel *model = m_owner->GetModel();
 
       const int leftMargin   = 55;
       const int rightMargin  = 22;
@@ -77,9 +74,11 @@ class PlotFrame::PlotCanvas : public wxPanel
       const wxPoint origin(leftMargin, size.GetHeight() - bottomMargin);
       const int plotTop = origin.y - plotHeight;
 
+      // Resolve each configured path to a live node in the model.
       std::vector<const Node *> resolvedNodes(series.size(), nullptr);
       bool anyResolved = false;
 
+      const SensorTreeModel *model = m_owner->GetModel();
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const PlotSeries &entry = series[idx];
          Node *node              = model->FindNodeByPath(entry.pathSegments);
@@ -117,6 +116,7 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       using TimedSample = Node::TimedSample;
 
+      // Track newest sample across all series to detect available data.
       auto latestOverall = std::chrono::steady_clock::time_point::min();
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const Node *node = resolvedNodes[idx];
@@ -135,6 +135,9 @@ class PlotFrame::PlotCanvas : public wxPanel
          return;
       }
 
+      const auto windowDuration = m_owner->GetTimeRangeDuration();
+      const auto now            = std::chrono::steady_clock::now();
+
       auto windowStart = std::chrono::steady_clock::time_point::min();
       if (windowDuration)
          windowStart = now - *windowDuration;
@@ -147,6 +150,7 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       std::vector<std::vector<const TimedSample *>> filtered(series.size());
 
+      // Filter samples into the chosen window while computing overall extents.
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const Node *node = resolvedNodes[idx];
          if (!node)
@@ -190,19 +194,20 @@ class PlotFrame::PlotCanvas : public wxPanel
          maxValue += 1.0;
       }
 
-      auto plotEnd = windowDuration ? now : std::max(now, latest);
-      if (windowDuration && latest > plotEnd)
-         plotEnd = latest;
+      // Nominally the plot end is "now", but cover the corner case where a sample
+      // timestamp is just beyond now.
+      auto plotEnd = std::max(now, latest);
 
+      // Compute the plot start time based on the window duration (or the earliest sample
+      // when no window is set).
       auto plotStart = windowDuration ? (plotEnd - *windowDuration) : earliest;
-      if (!windowDuration && plotStart > earliest)
-         plotStart = earliest;
       if (plotStart > plotEnd)
          plotStart = plotEnd - std::chrono::milliseconds(1);
 
       const double timeRange  = std::max(1e-9, std::chrono::duration<double>(plotEnd - plotStart).count());
       const double valueRange = std::max(1e-9, maxValue - minValue);
 
+      // Translate a sample to device coordinates inside the plot rectangle.
       auto toPoint = [&](const TimedSample &sample) {
          const double tSeconds = std::chrono::duration<double>(sample.timestamp - plotStart).count();
          const double xNorm    = tSeconds / timeRange;
@@ -217,6 +222,7 @@ class PlotFrame::PlotCanvas : public wxPanel
       const double rightX     = static_cast<double>(leftMargin + plotWidth);
       const double topY       = static_cast<double>(plotTop);
       const double bottomY    = static_cast<double>(origin.y);
+      // Lay out a simple grid for reference.
       for (int i = 0; i <= 5; ++i) {
          const double y = bottomY - (static_cast<double>(plotHeight) * i) / 5.0;
          gridPath.MoveToPoint(leftX, y);
@@ -258,6 +264,7 @@ class PlotFrame::PlotCanvas : public wxPanel
       dc.SetFont(baseFont);
       dc.SetTextForeground(textColour);
 
+      // Annotate value axis on the left.
       for (int i = 0; i <= 5; ++i) {
          const double fraction = static_cast<double>(i) / 5.0;
          const double value    = minValue + fraction * (maxValue - minValue);
@@ -267,6 +274,7 @@ class PlotFrame::PlotCanvas : public wxPanel
          dc.DrawText(label, wxPoint(leftMargin - textSz.GetWidth() - 6, y - textSz.GetHeight() / 2));
       }
 
+      // Annotate time axis at the bottom.
       for (int i = 0; i <= 5; ++i) {
          const double fraction = static_cast<double>(i) / 5.0;
          const double seconds  = fraction * timeRange;
@@ -288,6 +296,7 @@ class PlotFrame::PlotCanvas : public wxPanel
          if (filteredHistory.empty())
             continue;
 
+         // Render polylines and markers for each active series.
          pointCache.clear();
          pointCache.reserve(filteredHistory.size());
          for (const TimedSample *sample : filteredHistory) {
