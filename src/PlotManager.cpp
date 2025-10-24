@@ -186,7 +186,7 @@ void PlotManager::CloseAllPlots()
    }
    m_plots.clear();
 
-   for (PlotFrame *frame : frames) {
+   for (auto *frame : frames) {
       frame->Destroy();
    }
 }
