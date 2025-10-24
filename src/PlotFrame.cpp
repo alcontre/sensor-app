@@ -385,9 +385,6 @@ bool PlotFrame::AddSensors(const std::vector<Node *> &nodes)
       appended |= AppendSeries(node);
    }
 
-   if (appended)
-      m_canvas->Refresh();
-
    return appended;
 }
 
