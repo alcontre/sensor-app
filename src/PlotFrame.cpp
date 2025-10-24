@@ -482,8 +482,7 @@ void PlotFrame::SetTimeRange(TimeRange range)
    } else {
       m_timeRange = range;
       UpdateTimeRangeButtons();
-      if (m_canvas)
-         m_canvas->Refresh();
+      m_canvas->Refresh();
    }
 }
 

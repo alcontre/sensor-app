@@ -411,26 +411,31 @@ void MainFrame::OnSendToNewPlot(wxCommandEvent &WXUNUSED(event))
    wxString skippedMessage;
    std::vector<Node *> nodes = CollectPlotEligibleNodes(skippedMessage);
    if (nodes.empty()) {
-      wxString feedback = skippedMessage.IsEmpty() ? wxString("Select one or more sensors with numeric data to plot.") : skippedMessage;
+      wxString feedback = skippedMessage.IsEmpty()
+                              ? wxString("Select one or more sensors with numeric data to plot.")
+                              : skippedMessage;
       wxMessageBox(feedback, "Send to Plot", wxOK | wxICON_INFORMATION, this);
       return;
    }
 
-   // Find next unique plot name
-   unsigned long long plot_idx = 0;
-   wxString defaultPlotName;
-   while (true) {
-      defaultPlotName = wxString::Format("Plot %llu", plot_idx);
-      if (!m_plotManager->HasPlot(defaultPlotName))
-         break;
-      ++plot_idx;
-   }
+   // Prompt user for plot name
    wxTextEntryDialog dialog(this, "Enter a name for the new plot:", "Create Plot");
-   dialog.SetValue(defaultPlotName);
-   // Automatically select the text for easy replacement
+   {
+      // Find next unique plot name
+      int plot_idx = 0;
+      wxString defaultPlotName;
+      while (true) {
+         defaultPlotName = wxString::Format("Plot %u", plot_idx);
+         if (!m_plotManager->HasPlot(defaultPlotName))
+            break;
+         ++plot_idx;
+      }
+      dialog.SetValue(defaultPlotName);
+   }
+
+   // Automatically select the plotname text for easy replacement
    const wxWindowList &children = dialog.GetChildren();
-   for (wxWindowList::compatibility_iterator node = children.GetFirst(); node; node = node->GetNext()) {
-      wxWindow *child = node->GetData();
+   for (wxWindow *child : children) {
       if (auto *textCtrl = wxDynamicCast(child, wxTextCtrl)) {
          textCtrl->SelectAll();
          break;
@@ -444,12 +449,14 @@ void MainFrame::OnSendToNewPlot(wxCommandEvent &WXUNUSED(event))
    plotName.Trim(false);
 
    if (plotName.IsEmpty()) {
-      wxMessageBox("Plot name cannot be empty.", "Create Plot", wxOK | wxICON_WARNING, this);
+      wxMessageBox("Plot name cannot be empty.", "Create Plot",
+          wxOK | wxICON_WARNING, this);
       return;
    }
 
    if (m_plotManager->HasPlot(plotName)) {
-      wxMessageBox("A plot with that name already exists. Choose another name.", "Create Plot", wxOK | wxICON_WARNING, this);
+      wxMessageBox("A plot with that name already exists. Choose another name.",
+          "Create Plot", wxOK | wxICON_WARNING, this);
       return;
    }
 

@@ -16,7 +16,7 @@ std::string ToUtf8(const wxString &value)
 {
    const wxScopedCharBuffer buffer = value.ToUTF8();
    if (!buffer)
-      return std::string();
+      return "";
    return std::string(buffer.data(), buffer.length());
 }
 
