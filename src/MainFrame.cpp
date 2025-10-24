@@ -729,8 +729,6 @@ void MainFrame::OnSavePlotConfig(wxCommandEvent &WXUNUSED(event))
    }
 
    fileConfig.Flush();
-
-   wxLogMessage("Plot configuration saved to %s.", fileName.GetFullPath());
 }
 
 void MainFrame::OnLoadPlotConfig(wxCommandEvent &WXUNUSED(event))
