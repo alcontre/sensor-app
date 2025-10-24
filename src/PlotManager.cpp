@@ -7,6 +7,7 @@
 #include <wx/window.h>
 
 #include <algorithm>
+#include <sstream>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -33,6 +34,17 @@ std::vector<std::string> SplitPath(const std::string &path)
       start = end + 1;
    }
    return segments;
+}
+
+std::string JoinPath(const std::vector<std::string> &path)
+{
+   std::ostringstream oss;
+   for (size_t i = 0; i < path.size(); ++i) {
+      if (i > 0)
+         oss << '/';
+      oss << path[i];
+   }
+   return oss.str();
 }
 } // namespace
 
@@ -130,42 +142,63 @@ size_t PlotManager::RestorePlotConfigurations(const std::vector<PlotConfiguratio
          continue;
       }
 
-      std::vector<Node *> nodes;
-      nodes.reserve(cfg.sensorPaths.size());
-      std::unordered_set<Node *> seen;
+      struct SeriesRestoreEntry
+      {
+         std::vector<std::string> pathSegments;
+         std::string displayPath;
+      };
 
-      for (const std::string &path : cfg.sensorPaths) {
-         if (path.empty())
+      std::vector<SeriesRestoreEntry> seriesToAdd;
+      seriesToAdd.reserve(cfg.sensorPaths.size());
+
+      std::unordered_set<std::string> seenPaths;
+
+      for (const std::string &rawPath : cfg.sensorPaths) {
+         if (rawPath.empty())
             continue;
 
-         const std::vector<std::string> segments = SplitPath(path);
+         const std::vector<std::string> segments = SplitPath(rawPath);
          if (segments.empty())
             continue;
 
+         const std::string normalizedPath = JoinPath(segments);
+         if (!seenPaths.insert(normalizedPath).second)
+            continue;
+
          Node *node = m_model->FindNodeByPath(segments);
-         if (!node) {
-            warnings.push_back(wxString::Format("Plot '%s': sensor '%s' not found.", cfg.name, wxString::FromUTF8(path.c_str())));
-            continue;
+         if (node) {
+            if (!node->IsLeaf()) {
+               warnings.push_back(wxString::Format("Plot '%s': path '%s' is not a sensor.", cfg.name, wxString::FromUTF8(rawPath.c_str())));
+               continue;
+            }
+
+            if (node->HasValue() && !node->GetValue().IsNumeric()) {
+               warnings.push_back(wxString::Format("Plot '%s': sensor '%s' has no numeric data.", cfg.name, wxString::FromUTF8(rawPath.c_str())));
+               continue;
+            }
+
+            seriesToAdd.push_back(SeriesRestoreEntry{node->GetPath(), node->GetFullPath()});
+         } else {
+            seriesToAdd.push_back(SeriesRestoreEntry{segments, rawPath});
+            warnings.push_back(wxString::Format("Plot '%s': sensor '%s' not found (awaiting data).", cfg.name, wxString::FromUTF8(rawPath.c_str())));
          }
-
-         if (!node->HasValue() || !node->GetValue().IsNumeric()) {
-            warnings.push_back(wxString::Format("Plot '%s': sensor '%s' has no numeric data.", cfg.name, wxString::FromUTF8(path.c_str())));
-            continue;
-         }
-
-         if (!seen.insert(node).second)
-            continue;
-
-         nodes.push_back(node);
       }
 
-      if (nodes.empty()) {
+      if (seriesToAdd.empty()) {
          warnings.push_back(wxString::Format("Plot '%s' skipped (no matching sensors).", cfg.name));
          continue;
       }
 
       const bool existed = HasPlot(cfg.name);
-      PlotFrame *frame   = CreatePlot(cfg.name, nodes);
+      std::vector<Node *> emptyNodes;
+      PlotFrame *frame = CreatePlot(cfg.name, emptyNodes);
+      if (!frame)
+         continue;
+
+      for (auto &entry : seriesToAdd) {
+         frame->AddSensorPath(std::move(entry.pathSegments), std::move(entry.displayPath));
+      }
+
       if (!existed && frame)
          ++plotsCreated;
    }

@@ -36,6 +36,7 @@ class PlotFrame : public wxFrame
    PlotFrame(wxWindow *parent, const wxString &title, SensorTreeModel *model);
 
    bool AddSensors(const std::vector<Node *> &nodes);
+   bool AddSensorPath(std::vector<std::string> pathSegments, std::string displayPath);
    const wxString &GetPlotName() const { return m_title; }
    const std::vector<PlotSeries> &GetSeries() const { return m_series; }
    SensorTreeModel *GetModel() const { return m_model; }

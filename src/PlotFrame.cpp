@@ -411,10 +411,21 @@ bool PlotFrame::AppendSeries(Node *node)
    if (!node)
       return false;
 
-   if (!node->HasValue() || !node->GetValue().IsNumeric())
+   if (!node->IsLeaf())
+      return false;
+
+   if (node->HasValue() && !node->GetValue().IsNumeric())
       return false;
 
    std::vector<std::string> pathSegments = node->GetPath();
+   if (pathSegments.empty())
+      return false;
+
+   return AddSensorPath(std::move(pathSegments), node->GetFullPath());
+}
+
+bool PlotFrame::AddSensorPath(std::vector<std::string> pathSegments, std::string displayPath)
+{
    if (pathSegments.empty())
       return false;
 
@@ -426,15 +437,25 @@ bool PlotFrame::AppendSeries(Node *node)
    if (alreadyTracked != m_series.end())
       return false;
 
+   if (displayPath.empty()) {
+      displayPath.reserve(pathSegments.size() * 8);
+      for (size_t idx = 0; idx < pathSegments.size(); ++idx) {
+         if (idx > 0)
+            displayPath.push_back('/');
+         displayPath.append(pathSegments[idx]);
+      }
+   }
+
    PlotSeries series;
    series.pathSegments = std::move(pathSegments);
-   series.displayPath  = node->GetFullPath();
+   series.displayPath  = std::move(displayPath);
    series.colour       = PickColour();
    series.pen          = wxPen(series.colour, 2);
    series.pen.SetCap(wxCAP_ROUND);
    series.pen.SetJoin(wxJOIN_ROUND);
    series.brush = wxBrush(series.colour);
    m_series.push_back(std::move(series));
+
    return true;
 }
 
