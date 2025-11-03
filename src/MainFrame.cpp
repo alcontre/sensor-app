@@ -25,14 +25,6 @@ namespace {
 static std::string AppTitle   = "Sensor Tree Viewer";
 static std::string AppVersion = "1.2";
 
-std::string ToUtf8(const wxString &value)
-{
-   const wxScopedCharBuffer buffer = value.ToUTF8();
-   if (!buffer)
-      return std::string();
-   return std::string(buffer.data(), buffer.length());
-}
-
 constexpr int STATUS_FIELD_NET_STATUS    = 0;
 constexpr int STATUS_FIELD_LOG_INFO      = 1;
 constexpr int STATUS_FIELD_MESSAGE_COUNT = 2;
@@ -714,12 +706,12 @@ void MainFrame::OnSavePlotConfig(wxCommandEvent &WXUNUSED(event))
 
       wxString candidate = section;
       int suffix         = 1;
-      std::string key    = ToUtf8(candidate);
+      std::string key    = candidate.ToStdString();
       if (key.empty())
          key = "section_" + std::to_string(idx);
       while (usedSections.count(key) > 0) {
          candidate = section + wxString::Format("_%d", suffix++);
-         key       = ToUtf8(candidate);
+         key       = candidate.ToStdString();
          if (key.empty())
             key = "section_" + std::to_string(idx) + "_" + std::to_string(suffix);
       }
@@ -779,9 +771,9 @@ void MainFrame::OnLoadPlotConfig(wxCommandEvent &WXUNUSED(event))
                   if (!suffix.ToLong(&order))
                      order = static_cast<long>(sensors.size());
                }
-               const wxScopedCharBuffer buffer = value.ToUTF8();
-               if (buffer && buffer.length() > 0) {
-                  sensors.emplace_back(static_cast<int>(order), std::string(buffer.data(), buffer.length()));
+               const auto val = value.ToStdString();
+               if (!val.empty()) {
+                  sensors.emplace_back(static_cast<int>(order), val);
                }
             }
          }
@@ -796,8 +788,7 @@ void MainFrame::OnLoadPlotConfig(wxCommandEvent &WXUNUSED(event))
       PlotManager::PlotConfiguration cfg;
       cfg.name = title;
       for (auto &sensor : sensors) {
-         if (!sensor.second.empty())
-            cfg.sensorPaths.push_back(std::move(sensor.second));
+         cfg.sensorPaths.push_back(std::move(sensor.second));
       }
       configs.push_back(std::move(cfg));
 
