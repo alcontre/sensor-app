@@ -12,7 +12,6 @@
 #include <utility>
 #include <vector>
 
-#include <wx/aboutdlg.h>
 #include <wx/accel.h>
 #include <wx/fileconf.h>
 #include <wx/filedlg.h>
@@ -22,6 +21,7 @@
 #include <wx/window.h>
 
 namespace {
+
 static std::string AppTitle   = "Sensor Tree Viewer";
 static std::string AppVersion = "1.2";
 
@@ -32,7 +32,7 @@ constexpr int STATUS_FIELD_COUNT         = 3;
 } // namespace
 
 MainFrame::MainFrame() :
-    wxFrame(nullptr, wxID_ANY, AppTitle,
+    wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
         wxDefaultPosition, wxSize(800, 600)),
     m_treeCtrl(nullptr),
     m_filterCtrl(nullptr),
@@ -123,15 +123,12 @@ void MainFrame::OnExit(wxCommandEvent &event)
    Close(true);
 }
 
-void MainFrame::OnAbout(wxCommandEvent &WXUNUSED(event))
+void MainFrame::OnAbout(wxCommandEvent &event)
 {
-   wxAboutDialogInfo info;
-   info.SetName(AppTitle);
-   info.SetVersion(AppVersion);
-   info.SetCopyright("ABC inc");
-   info.SetDescription("A hierarchical sensor data display application\nSupports arbitrary hierarchical data structures.");
-
-   wxAboutBox(info, this);
+   wxMessageBox("Sensor Tree Viewer\n"
+                "A hierarchical sensor data display application\n"
+                "Supports arbitrary hierarchical data structures",
+       "About Sensor Tree Viewer", wxOK | wxICON_INFORMATION);
 }
 
 void MainFrame::CreateSensorTreeView()
