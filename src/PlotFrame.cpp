@@ -8,8 +8,11 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <wx/dcbuffer.h>
@@ -130,7 +133,7 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       if (latestOverall == std::chrono::steady_clock::time_point::min()) {
          dc.SetTextForeground(textColour);
-         dc.DrawText("Waiting for numeric samples...", wxPoint(10, 10));
+         dc.DrawText("Waiting for samples...", wxPoint(10, 10));
          drawLegend(leftMargin + 8, plotTop + 24);
          return;
       }
@@ -142,15 +145,39 @@ class PlotFrame::PlotCanvas : public wxPanel
       if (windowDuration)
          windowStart = now - *windowDuration;
 
-      bool hasData    = false;
-      auto earliest   = std::chrono::steady_clock::time_point::max();
-      auto latest     = std::chrono::steady_clock::time_point::min();
-      double minValue = std::numeric_limits<double>::infinity();
-      double maxValue = -std::numeric_limits<double>::infinity();
+      enum class RawSampleKind
+      {
+         Numeric,
+         Boolean,
+         String
+      };
 
-      std::vector<std::vector<const TimedSample *>> filtered(series.size());
+      struct RawSample
+      {
+         const TimedSample *sample;
+         RawSampleKind kind;
+         double numericValue;
+         bool boolValue;
+         std::string stringValue;
+      };
 
-      // Filter samples into the chosen window while computing overall extents.
+      struct PreparedSample
+      {
+         const TimedSample *sample;
+         double mappedValue;
+      };
+
+      std::vector<std::vector<RawSample>> raw(series.size());
+      bool hasNumericSamples = false;
+      bool hasBooleanSamples = false;
+      std::set<std::string> uniqueStrings;
+
+      bool hasData           = false;
+      auto earliest     = std::chrono::steady_clock::time_point::max();
+      auto latest       = std::chrono::steady_clock::time_point::min();
+      double numericMin = std::numeric_limits<double>::infinity();
+      double numericMax = -std::numeric_limits<double>::infinity();
+
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const Node *node = resolvedNodes[idx];
          if (!node)
@@ -159,17 +186,37 @@ class PlotFrame::PlotCanvas : public wxPanel
          if (history.empty())
             continue;
 
-         auto &bucket = filtered[idx];
+         auto &bucket = raw[idx];
+         bucket.reserve(history.size());
+
          for (const TimedSample &sample : history) {
             if (windowDuration && sample.timestamp < windowStart)
                continue;
 
-            hasData = true;
-            bucket.push_back(&sample);
+            const DataValue &value = sample.value;
+            RawSample captured{&sample, RawSampleKind::Numeric, 0.0, false, {}};
+
+            if (value.IsNumeric()) {
+               captured.numericValue = value.GetNumeric();
+               hasNumericSamples     = true;
+               numericMin            = std::min(numericMin, captured.numericValue);
+               numericMax            = std::max(numericMax, captured.numericValue);
+            } else if (value.IsBoolean()) {
+               captured.kind      = RawSampleKind::Boolean;
+               captured.boolValue = value.GetBoolean();
+               hasBooleanSamples  = true;
+            } else if (value.IsString()) {
+               captured.kind        = RawSampleKind::String;
+               captured.stringValue = value.GetString();
+               uniqueStrings.insert(captured.stringValue);
+            } else {
+               continue;
+            }
+
+            bucket.push_back(std::move(captured));
+            hasData  = true;
             earliest = std::min(earliest, sample.timestamp);
             latest   = std::max(latest, sample.timestamp);
-            minValue = std::min(minValue, sample.value);
-            maxValue = std::max(maxValue, sample.value);
          }
       }
 
@@ -180,16 +227,100 @@ class PlotFrame::PlotCanvas : public wxPanel
          return;
       }
 
-      if (!std::isfinite(minValue) || !std::isfinite(maxValue)) {
-         minValue = -1.0;
-         maxValue = 1.0;
-      }
-
       if (std::chrono::duration<double>(latest - earliest).count() <= 0.0) {
          latest = earliest + std::chrono::milliseconds(1);
       }
 
-      if (minValue == maxValue) {
+      std::unordered_map<std::string, double> categoryPositions;
+      categoryPositions.reserve(uniqueStrings.size() + (hasBooleanSamples ? 2 : 0));
+
+      std::map<double, wxString> categoricalLabels;
+      double nextCategory = 0.0;
+
+      if (hasBooleanSamples) {
+         categoryPositions["false"]      = nextCategory;
+         categoricalLabels[nextCategory] = "false";
+         ++nextCategory;
+         categoryPositions["true"]       = nextCategory;
+         categoricalLabels[nextCategory] = "true";
+         ++nextCategory;
+      }
+
+      for (const std::string &label : uniqueStrings) {
+         if (categoryPositions.find(label) != categoryPositions.end())
+            continue;
+         const double position       = nextCategory++;
+         categoryPositions[label]    = position;
+         categoricalLabels[position] = wxString::FromUTF8(label.c_str());
+      }
+
+      bool hasCategoricalSamples = !categoryPositions.empty();
+      double categoricalMin      = std::numeric_limits<double>::infinity();
+      double categoricalMax      = -std::numeric_limits<double>::infinity();
+      if (hasCategoricalSamples) {
+         for (const auto &entry : categoryPositions) {
+            categoricalMin = std::min(categoricalMin, entry.second);
+            categoricalMax = std::max(categoricalMax, entry.second);
+         }
+      }
+
+      double falsePosition = 0.0;
+      double truePosition  = 0.0;
+      if (hasBooleanSamples) {
+         if (const auto it = categoryPositions.find("false"); it != categoryPositions.end())
+            falsePosition = it->second;
+         if (const auto it = categoryPositions.find("true"); it != categoryPositions.end())
+            truePosition = it->second;
+      }
+
+      std::vector<std::vector<PreparedSample>> filtered(series.size());
+      for (size_t idx = 0; idx < series.size(); ++idx) {
+         const auto &rawBucket = raw[idx];
+         if (rawBucket.empty())
+            continue;
+
+         auto &preparedBucket = filtered[idx];
+         preparedBucket.reserve(rawBucket.size());
+
+         for (const RawSample &rawSample : rawBucket) {
+            double mapped = 0.0;
+            switch (rawSample.kind) {
+               case RawSampleKind::Numeric:
+                  mapped = rawSample.numericValue;
+                  break;
+               case RawSampleKind::Boolean:
+                  mapped = rawSample.boolValue ? truePosition : falsePosition;
+                  break;
+               case RawSampleKind::String: {
+                  auto it = categoryPositions.find(rawSample.stringValue);
+                  if (it == categoryPositions.end())
+                     continue;
+                  mapped = it->second;
+                  break;
+               }
+            }
+            preparedBucket.push_back(PreparedSample{rawSample.sample, mapped});
+         }
+      }
+
+      double minValue = std::numeric_limits<double>::infinity();
+      double maxValue = -std::numeric_limits<double>::infinity();
+
+      auto updateRange = [&](double candidateMin, double candidateMax) {
+         minValue = std::min(minValue, candidateMin);
+         maxValue = std::max(maxValue, candidateMax);
+      };
+
+      if (hasNumericSamples && std::isfinite(numericMin) && std::isfinite(numericMax))
+         updateRange(numericMin, numericMax);
+
+      if (hasCategoricalSamples && std::isfinite(categoricalMin) && std::isfinite(categoricalMax))
+         updateRange(categoricalMin - 0.5, categoricalMax + 0.5);
+
+      if (!std::isfinite(minValue) || !std::isfinite(maxValue)) {
+         minValue = -1.0;
+         maxValue = 1.0;
+      } else if (minValue == maxValue) {
          minValue -= 1.0;
          maxValue += 1.0;
       }
@@ -208,25 +339,36 @@ class PlotFrame::PlotCanvas : public wxPanel
       const double valueRange = std::max(1e-9, maxValue - minValue);
 
       // Translate a sample to device coordinates inside the plot rectangle.
-      auto toPoint = [&](const TimedSample &sample) {
-         const double tSeconds = std::chrono::duration<double>(sample.timestamp - plotStart).count();
+      auto toPoint = [&](const PreparedSample &sample) {
+         const double tSeconds = std::chrono::duration<double>(sample.sample->timestamp - plotStart).count();
          const double xNorm    = tSeconds / timeRange;
-         const double yNorm    = (sample.value - minValue) / valueRange;
+         const double yNorm    = (sample.mappedValue - minValue) / valueRange;
          const double x        = origin.x + xNorm * plotWidth;
          const double y        = origin.y - yNorm * plotHeight;
          return wxPoint2DDouble(x, y);
       };
+
+      const bool usingCategoricalAxis = hasCategoricalSamples && !hasNumericSamples;
 
       wxGraphicsPath gridPath = gc->CreatePath();
       const double leftX      = static_cast<double>(leftMargin);
       const double rightX     = static_cast<double>(leftMargin + plotWidth);
       const double topY       = static_cast<double>(plotTop);
       const double bottomY    = static_cast<double>(origin.y);
-      // Lay out a simple grid for reference.
-      for (int i = 0; i <= 5; ++i) {
-         const double y = bottomY - (static_cast<double>(plotHeight) * i) / 5.0;
-         gridPath.MoveToPoint(leftX, y);
-         gridPath.AddLineToPoint(rightX, y);
+
+      if (usingCategoricalAxis) {
+         for (const auto &tick : categoricalLabels) {
+            const double fraction = (tick.first - minValue) / valueRange;
+            const double y        = bottomY - fraction * static_cast<double>(plotHeight);
+            gridPath.MoveToPoint(leftX, y);
+            gridPath.AddLineToPoint(rightX, y);
+         }
+      } else {
+         for (int i = 0; i <= 5; ++i) {
+            const double y = bottomY - (static_cast<double>(plotHeight) * i) / 5.0;
+            gridPath.MoveToPoint(leftX, y);
+            gridPath.AddLineToPoint(rightX, y);
+         }
       }
       for (int i = 0; i <= 5; ++i) {
          const double x = leftX + (static_cast<double>(plotWidth) * i) / 5.0;
@@ -264,14 +406,32 @@ class PlotFrame::PlotCanvas : public wxPanel
       dc.SetFont(baseFont);
       dc.SetTextForeground(textColour);
 
-      // Annotate value axis on the left.
-      for (int i = 0; i <= 5; ++i) {
-         const double fraction = static_cast<double>(i) / 5.0;
-         const double value    = minValue + fraction * (maxValue - minValue);
-         const wxString label  = formatValue(value);
-         const int y           = origin.y - static_cast<int>(fraction * plotHeight);
-         const wxSize textSz   = dc.GetTextExtent(label);
-         dc.DrawText(label, wxPoint(leftMargin - textSz.GetWidth() - 6, y - textSz.GetHeight() / 2));
+      // Annotate value axis.
+      if (usingCategoricalAxis) {
+         for (const auto &tick : categoricalLabels) {
+            const double fraction = (tick.first - minValue) / valueRange;
+            const double yPos     = static_cast<double>(origin.y) - fraction * static_cast<double>(plotHeight);
+            const wxSize textSz   = dc.GetTextExtent(tick.second);
+            dc.DrawText(tick.second, wxPoint(leftMargin - textSz.GetWidth() - 6, static_cast<int>(std::round(yPos)) - textSz.GetHeight() / 2));
+         }
+      } else {
+         for (int i = 0; i <= 5; ++i) {
+            const double fraction = static_cast<double>(i) / 5.0;
+            const double value    = minValue + fraction * (maxValue - minValue);
+            const wxString label  = formatValue(value);
+            const int y           = origin.y - static_cast<int>(fraction * plotHeight);
+            const wxSize textSz   = dc.GetTextExtent(label);
+            dc.DrawText(label, wxPoint(leftMargin - textSz.GetWidth() - 6, y - textSz.GetHeight() / 2));
+         }
+
+         if (hasCategoricalSamples) {
+            for (const auto &tick : categoricalLabels) {
+               const double fraction = (tick.first - minValue) / valueRange;
+               const double yPos     = static_cast<double>(origin.y) - fraction * static_cast<double>(plotHeight);
+               const wxSize textSz   = dc.GetTextExtent(tick.second);
+               dc.DrawText(tick.second, wxPoint(leftMargin + plotWidth + 6, static_cast<int>(std::round(yPos)) - textSz.GetHeight() / 2));
+            }
+         }
       }
 
       // Annotate time axis at the bottom.
@@ -299,8 +459,8 @@ class PlotFrame::PlotCanvas : public wxPanel
          // Render polylines and markers for each active series.
          pointCache.clear();
          pointCache.reserve(filteredHistory.size());
-         for (const TimedSample *sample : filteredHistory) {
-            pointCache.push_back(toPoint(*sample));
+         for (const PreparedSample &sample : filteredHistory) {
+            pointCache.push_back(toPoint(sample));
          }
 
          gc->SetPen(entry.pen);
@@ -412,9 +572,6 @@ bool PlotFrame::AppendSeries(Node *node)
       return false;
 
    if (!node->IsLeaf())
-      return false;
-
-   if (node->HasValue() && !node->GetValue().IsNumeric())
       return false;
 
    std::vector<std::string> pathSegments = node->GetPath();

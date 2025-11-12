@@ -52,13 +52,12 @@ class Node
    struct TimedSample
    {
       std::chrono::steady_clock::time_point timestamp;
-      double value;
+      DataValue value;
       bool failed;
    };
 
    const std::deque<TimedSample> &GetHistory() const { return m_history; }
-   bool HasNumericHistory() const { return !m_history.empty(); }
-   void SetHistoryLimit(size_t limit);
+   bool HasHistory() const { return !m_history.empty(); }
    size_t GetHistoryLimit() const { return m_historyLimit; }
    void ClearHistory();
    size_t GetUpdateCount() const { return m_updateCount; }

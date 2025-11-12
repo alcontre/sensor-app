@@ -1,5 +1,7 @@
 #include "Node.h"
 
+#include <wx/debug.h>
+
 #include <algorithm>
 #include <chrono>
 #include <sstream>
@@ -55,12 +57,12 @@ void Node::SetValue(const DataValue &value,
    m_lastUpdate     = now;
    ++m_updateCount;
 
-   if (value.IsNumeric() && m_historyLimit > 0) {
-      TimedSample sample{now, value.GetNumeric(), failed};
-      m_history.push_back(sample);
-      while (m_history.size() > m_historyLimit) {
-         m_history.pop_front();
-      }
+   wxASSERT(m_historyLimit > 0);
+
+   TimedSample sample{now, value, failed};
+   m_history.push_back(sample);
+   while (m_history.size() > m_historyLimit) {
+      m_history.pop_front();
    }
 }
 
@@ -144,16 +146,6 @@ double Node::GetSecondsSinceUpdate() const
    auto now     = std::chrono::steady_clock::now();
    auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(now - m_lastUpdate);
    return elapsed.count();
-}
-
-void Node::SetHistoryLimit(size_t limit)
-{
-   if (limit == 0)
-      limit = 1;
-   m_historyLimit = limit;
-   while (m_history.size() > m_historyLimit) {
-      m_history.pop_front();
-   }
 }
 
 void Node::ClearHistory()

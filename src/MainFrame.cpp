@@ -624,10 +624,10 @@ std::vector<Node *> MainFrame::CollectPlotEligibleNodes(wxString &messageOut) co
       if (unique.find(node) != unique.end())
          continue;
 
-      const bool hasNumericValue = node->HasValue() && node->GetValue().IsNumeric();
-      const bool hasHistory      = node->HasNumericHistory();
-      if (!hasNumericValue && !hasHistory) {
-         skipped.push_back(wxString::FromUTF8(node->GetFullPath().c_str()) + " (no numeric data)");
+      const bool hasValue   = node->HasValue();
+      const bool hasHistory = node->HasHistory();
+      if (!hasValue && !hasHistory) {
+         skipped.push_back(wxString::FromUTF8(node->GetFullPath().c_str()) + " (no data yet)");
          continue;
       }
 

@@ -172,11 +172,6 @@ size_t PlotManager::RestorePlotConfigurations(const std::vector<PlotConfiguratio
                continue;
             }
 
-            if (node->HasValue() && !node->GetValue().IsNumeric()) {
-               warnings.push_back(wxString::Format("Plot '%s': sensor '%s' has no numeric data.", cfg.name, wxString::FromUTF8(rawPath.c_str())));
-               continue;
-            }
-
             seriesToAdd.push_back(SeriesRestoreEntry{node->GetPath(), node->GetFullPath()});
          } else {
             seriesToAdd.push_back(SeriesRestoreEntry{segments, rawPath});
