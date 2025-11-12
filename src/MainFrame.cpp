@@ -617,12 +617,12 @@ std::vector<Node *> MainFrame::CollectPlotEligibleNodes(wxString &messageOut) co
          continue;
 
       if (!node->IsLeaf()) {
-         skipped.push_back(wxString::FromUTF8(node->GetFullPath().c_str()) + " (not a sensor)");
          continue;
       }
 
-      if (unique.find(node) != unique.end())
+      if (unique.find(node) != unique.end()) {
          continue;
+      }
 
       if (!node->HasHistory()) {
          skipped.push_back(wxString::FromUTF8(node->GetFullPath().c_str()) + " (no data yet)");
