@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdint>
 #include <optional>
+#include <random>
 
 SensorDataTestGenerator::SensorDataTestGenerator(std::atomic<bool> &activeFlag, wxEvtHandler *target) :
     wxThread(wxTHREAD_DETACHED),
@@ -51,7 +52,8 @@ void SensorDataTestGenerator::QueueRandomDataSample()
       {
          Double,
          Integer,
-         String
+         String,
+         Boolean
       } type;
       double minDouble;
       double maxDouble;
@@ -62,6 +64,8 @@ void SensorDataTestGenerator::QueueRandomDataSample()
       std::optional<DataValue> upperThreshold;
       double failureProbability;
       std::vector<std::string> failureStringValues;
+      double booleanTrueProbability = 0.5;
+      std::vector<bool> failureBooleanValues;
    };
 
    static const std::vector<SampleDefinition> definitions = {
@@ -87,8 +91,12 @@ void SensorDataTestGenerator::QueueRandomDataSample()
            DataValue::FromInt64(1500), DataValue::FromInt64(9000), 0.1, {}},
        {{"Network", "Router01", "Port1", "LinkStatus"}, SampleDefinition::ValueType::String, 0.0, 0.0, 0, 0,
            {"Up", "Down", "Flapping"}, std::nullopt, std::nullopt, 0.25, {"Down", "Flapping"}},
-       {{"Network", "Router01", "Port2", "LinkStatus"}, SampleDefinition::ValueType::String, 0.0, 0.0, 0, 0,
-           {"Up", "Down"}, std::nullopt, std::nullopt, 0.2, {"Down"}}};
+      {{"Network", "Router01", "Port2", "LinkStatus"}, SampleDefinition::ValueType::String, 0.0, 0.0, 0, 0,
+         {"Up", "Down"}, std::nullopt, std::nullopt, 0.2, {"Down"}},
+      {{"Server01", "Power", "IsRedundant"}, SampleDefinition::ValueType::Boolean, 0.0, 0.0, 0, 0, {}, std::nullopt,
+         std::nullopt, 0.05, {}, 0.85, {false}},
+      {{"Network", "Firewall", "FailoverActive"}, SampleDefinition::ValueType::Boolean, 0.0, 0.0, 0, 0, {}, std::nullopt,
+         std::nullopt, 0.1, {}, 0.1, {true}}};
 
    if (definitions.empty())
       return;
@@ -162,6 +170,21 @@ void SensorDataTestGenerator::QueueRandomDataSample()
 
          value  = DataValue::FromString(chosen);
          failed = std::find(def.failureStringValues.begin(), def.failureStringValues.end(), chosen) != def.failureStringValues.end();
+         break;
+      }
+      case SampleDefinition::ValueType::Boolean: {
+         bool generated = std::bernoulli_distribution(def.booleanTrueProbability)(m_rng);
+
+         bool induceFailure = def.failureProbability > 0.0 && !def.failureBooleanValues.empty() &&
+                              std::bernoulli_distribution(def.failureProbability)(m_rng);
+         if (induceFailure) {
+            std::uniform_int_distribution<size_t> failureDist(0, def.failureBooleanValues.size() - 1);
+            generated = def.failureBooleanValues[failureDist(m_rng)];
+         }
+
+         value  = DataValue::FromBool(generated);
+         failed = std::any_of(def.failureBooleanValues.begin(), def.failureBooleanValues.end(),
+             [generated](bool failureVal) { return failureVal == generated; });
          break;
       }
    }
