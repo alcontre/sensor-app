@@ -32,7 +32,7 @@ constexpr int STATUS_FIELD_COUNT         = 3;
 } // namespace
 
 MainFrame::MainFrame() :
-    wxFrame(nullptr, wxID_ANY, "Sensor Tree Viewer",
+    wxFrame(nullptr, wxID_ANY, AppTitle + " v" + AppVersion,
         wxDefaultPosition, wxSize(800, 600)),
     m_treeCtrl(nullptr),
     m_filterCtrl(nullptr),
