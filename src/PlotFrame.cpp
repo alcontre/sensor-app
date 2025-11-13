@@ -145,34 +145,12 @@ class PlotFrame::PlotCanvas : public wxPanel
       if (windowDuration)
          windowStart = now - *windowDuration;
 
-      enum class RawSampleKind
-      {
-         Numeric,
-         Boolean,
-         String
-      };
-
-      struct RawSample
-      {
-         const TimedSample *sample;
-         RawSampleKind kind;
-         double numericValue;
-         bool boolValue;
-         std::string stringValue;
-      };
-
-      struct PreparedSample
-      {
-         const TimedSample *sample;
-         double mappedValue;
-      };
-
-      std::vector<std::vector<RawSample>> raw(series.size());
+      std::vector<std::vector<const TimedSample *>> raw(series.size());
       bool hasNumericSamples = false;
       bool hasBooleanSamples = false;
       std::set<std::string> uniqueStrings;
 
-      bool hasData           = false;
+      bool hasData      = false;
       auto earliest     = std::chrono::steady_clock::time_point::max();
       auto latest       = std::chrono::steady_clock::time_point::min();
       double numericMin = std::numeric_limits<double>::infinity();
@@ -194,26 +172,21 @@ class PlotFrame::PlotCanvas : public wxPanel
                continue;
 
             const DataValue &value = sample.value;
-            RawSample captured{&sample, RawSampleKind::Numeric, 0.0, false, {}};
 
             if (value.IsNumeric()) {
-               captured.numericValue = value.GetNumeric();
-               hasNumericSamples     = true;
-               numericMin            = std::min(numericMin, captured.numericValue);
-               numericMax            = std::max(numericMax, captured.numericValue);
+               const double numeric = value.GetNumeric();
+               hasNumericSamples    = true;
+               numericMin           = std::min(numericMin, numeric);
+               numericMax           = std::max(numericMax, numeric);
             } else if (value.IsBoolean()) {
-               captured.kind      = RawSampleKind::Boolean;
-               captured.boolValue = value.GetBoolean();
-               hasBooleanSamples  = true;
+               hasBooleanSamples = true;
             } else if (value.IsString()) {
-               captured.kind        = RawSampleKind::String;
-               captured.stringValue = value.GetString();
-               uniqueStrings.insert(captured.stringValue);
+               uniqueStrings.insert(value.GetString());
             } else {
                continue;
             }
 
-            bucket.push_back(std::move(captured));
+            bucket.push_back(&sample);
             hasData  = true;
             earliest = std::min(earliest, sample.timestamp);
             latest   = std::max(latest, sample.timestamp);
@@ -273,6 +246,12 @@ class PlotFrame::PlotCanvas : public wxPanel
             truePosition = it->second;
       }
 
+      struct PreparedSample
+      {
+         const TimedSample *sample;
+         double mappedValue;
+      };
+
       std::vector<std::vector<PreparedSample>> filtered(series.size());
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const auto &rawBucket = raw[idx];
@@ -282,24 +261,25 @@ class PlotFrame::PlotCanvas : public wxPanel
          auto &preparedBucket = filtered[idx];
          preparedBucket.reserve(rawBucket.size());
 
-         for (const RawSample &rawSample : rawBucket) {
-            double mapped = 0.0;
-            switch (rawSample.kind) {
-               case RawSampleKind::Numeric:
-                  mapped = rawSample.numericValue;
-                  break;
-               case RawSampleKind::Boolean:
-                  mapped = rawSample.boolValue ? truePosition : falsePosition;
-                  break;
-               case RawSampleKind::String: {
-                  auto it = categoryPositions.find(rawSample.stringValue);
-                  if (it == categoryPositions.end())
-                     continue;
-                  mapped = it->second;
-                  break;
-               }
+         for (const TimedSample *rawSample : rawBucket) {
+            if (!rawSample)
+               continue;
+
+            double mapped          = 0.0;
+            const DataValue &value = rawSample->value;
+            if (value.IsNumeric()) {
+               mapped = value.GetNumeric();
+            } else if (value.IsBoolean()) {
+               mapped = value.GetBoolean() ? truePosition : falsePosition;
+            } else if (value.IsString()) {
+               auto it = categoryPositions.find(value.GetString());
+               if (it == categoryPositions.end())
+                  continue;
+               mapped = it->second;
+            } else {
+               continue;
             }
-            preparedBucket.push_back(PreparedSample{rawSample.sample, mapped});
+            preparedBucket.push_back(PreparedSample{rawSample, mapped});
          }
       }
 
