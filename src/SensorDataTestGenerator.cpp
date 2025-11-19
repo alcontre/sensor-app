@@ -11,6 +11,91 @@
 #include <optional>
 #include <random>
 
+namespace {
+struct SampleDefinition
+{
+   std::vector<std::string> path;
+   enum class ValueType
+   {
+      Double,
+      Integer,
+      String,
+      Boolean
+   } type;
+   double minDouble        = 0.0;
+   double maxDouble        = 0.0;
+   std::int64_t minInteger = 0;
+   std::int64_t maxInteger = 0;
+   std::vector<std::string> stringOptions;
+   std::optional<DataValue> lowerThreshold;
+   std::optional<DataValue> upperThreshold;
+   double failureProbability = 0.0;
+   std::vector<std::string> failureStringValues;
+   double booleanTrueProbability = 0.5;
+   std::vector<bool> failureBooleanValues;
+};
+
+std::vector<SampleDefinition> GenerateTestSensors()
+{
+   std::vector<SampleDefinition> defs;
+   defs.reserve(10 * 10 * 10);
+
+   for (int i = 0; i < 10; ++i) {
+      std::string cat = "Category" + std::to_string(i + 1);
+      for (int j = 0; j < 10; ++j) {
+         std::string sub = "SubCategory" + std::to_string(j + 1);
+         for (int k = 0; k < 10; ++k) {
+            int type = k % 4;
+            std::string typeSuffix;
+            if (type == 0)
+               typeSuffix = "Double";
+            else if (type == 1)
+               typeSuffix = "Int";
+            else if (type == 2)
+               typeSuffix = "String";
+            else
+               typeSuffix = "Bool";
+
+            std::string sensor = "Sensor" + std::to_string(k + 1) + "_" + typeSuffix;
+
+            SampleDefinition def;
+            def.path = {cat, sub, sensor};
+
+            // Distribute types
+            if (type == 0) { // Double
+               def.type               = SampleDefinition::ValueType::Double;
+               def.minDouble          = 0.0;
+               def.maxDouble          = 100.0;
+               def.lowerThreshold     = DataValue::FromDouble(10.0);
+               def.upperThreshold     = DataValue::FromDouble(90.0);
+               def.failureProbability = 0.05;
+            } else if (type == 1) { // Integer
+               def.type               = SampleDefinition::ValueType::Integer;
+               def.minInteger         = 0;
+               def.maxInteger         = 1000;
+               def.lowerThreshold     = DataValue::FromInt64(100);
+               def.upperThreshold     = DataValue::FromInt64(900);
+               def.failureProbability = 0.05;
+            } else if (type == 2) { // String
+               def.type                = SampleDefinition::ValueType::String;
+               def.stringOptions       = {"OK", "Warning", "Error", "Unknown"};
+               def.failureStringValues = {"Error", "Unknown"};
+               def.failureProbability  = 0.05;
+            } else { // Boolean
+               def.type                   = SampleDefinition::ValueType::Boolean;
+               def.booleanTrueProbability = 0.8;
+               def.failureBooleanValues   = {false};
+               def.failureProbability     = 0.05;
+            }
+
+            defs.push_back(def);
+         }
+      }
+   }
+   return defs;
+}
+} // namespace
+
 SensorDataTestGenerator::SensorDataTestGenerator(std::atomic<bool> &activeFlag, wxEvtHandler *target) :
     wxThread(wxTHREAD_DETACHED),
     m_activeFlag(activeFlag),
@@ -33,7 +118,7 @@ wxThread::ExitCode SensorDataTestGenerator::Entry()
 
       if (isActive) {
          QueueRandomDataSample();
-         wxThread::Sleep(100);
+         wxThread::Sleep(20);
       } else {
          wxThread::Sleep(100);
       }
@@ -45,58 +130,7 @@ wxThread::ExitCode SensorDataTestGenerator::Entry()
 
 void SensorDataTestGenerator::QueueRandomDataSample()
 {
-   struct SampleDefinition
-   {
-      std::vector<std::string> path;
-      enum class ValueType
-      {
-         Double,
-         Integer,
-         String,
-         Boolean
-      } type;
-      double minDouble;
-      double maxDouble;
-      std::int64_t minInteger;
-      std::int64_t maxInteger;
-      std::vector<std::string> stringOptions;
-      std::optional<DataValue> lowerThreshold;
-      std::optional<DataValue> upperThreshold;
-      double failureProbability;
-      std::vector<std::string> failureStringValues;
-      double booleanTrueProbability = 0.5;
-      std::vector<bool> failureBooleanValues;
-   };
-
-   static const std::vector<SampleDefinition> definitions = {
-       {{"Server01", "CPU", "Core0", "Temperature"}, SampleDefinition::ValueType::Double, 35.0, 65.0, 0, 0, {},
-           DataValue::FromDouble(32.0), DataValue::FromDouble(72.0), 0.1, {}},
-       {{"Server01", "CPU", "Core0", "Voltage"}, SampleDefinition::ValueType::Double, 1.0, 1.2, 0, 0, {},
-           DataValue::FromDouble(0.9), DataValue::FromDouble(1.25), 0.08, {}},
-       {{"Server01", "CPU", "Core0", "FanRPM"}, SampleDefinition::ValueType::Integer, 0.0, 0.0, 1200, 2400, {},
-           DataValue::FromInt64(1000), DataValue::FromInt64(2600), 0.12, {}},
-       {{"Server01", "CPU", "Core1", "Temperature"}, SampleDefinition::ValueType::Double, 35.0, 65.0, 0, 0, {},
-           DataValue::FromDouble(32.0), DataValue::FromDouble(72.0), 0.1, {}},
-       {{"Server01", "GPU", "Temperature"}, SampleDefinition::ValueType::Double, 45.0, 80.0, 0, 0, {},
-           DataValue::FromDouble(40.0), DataValue::FromDouble(85.0), 0.12, {}},
-       {{"Server01", "GPU", "Status"}, SampleDefinition::ValueType::String, 0.0, 0.0, 0, 0,
-           {"Running", "Idle", "Throttled"}, std::nullopt, std::nullopt, 0.15, {"Throttled"}},
-       {{"Server02", "CPU", "Temperature"}, SampleDefinition::ValueType::Double, 32.0, 60.0, 0, 0, {},
-           DataValue::FromDouble(28.0), DataValue::FromDouble(68.0), 0.1, {}},
-       {{"Server02", "CPU", "LoadPercent"}, SampleDefinition::ValueType::Integer, 0.0, 0.0, 0, 100, {},
-           DataValue::FromInt64(0), DataValue::FromInt64(95), 0.1, {}},
-       {{"Server02", "Status"}, SampleDefinition::ValueType::String, 0.0, 0.0, 0, 0,
-           {"Online", "Maintenance", "Offline"}, std::nullopt, std::nullopt, 0.2, {"Offline"}},
-       {{"Network", "Router01", "Port1", "Throughput"}, SampleDefinition::ValueType::Integer, 0.0, 0.0, 1000, 10000, {},
-           DataValue::FromInt64(1500), DataValue::FromInt64(9000), 0.1, {}},
-       {{"Network", "Router01", "Port1", "LinkStatus"}, SampleDefinition::ValueType::String, 0.0, 0.0, 0, 0,
-           {"Up", "Down", "Flapping"}, std::nullopt, std::nullopt, 0.25, {"Down", "Flapping"}},
-      {{"Network", "Router01", "Port2", "LinkStatus"}, SampleDefinition::ValueType::String, 0.0, 0.0, 0, 0,
-         {"Up", "Down"}, std::nullopt, std::nullopt, 0.2, {"Down"}},
-      {{"Server01", "Power", "IsRedundant"}, SampleDefinition::ValueType::Boolean, 0.0, 0.0, 0, 0, {}, std::nullopt,
-         std::nullopt, 0.05, {}, 0.85, {false}},
-      {{"Network", "Firewall", "FailoverActive"}, SampleDefinition::ValueType::Boolean, 0.0, 0.0, 0, 0, {}, std::nullopt,
-         std::nullopt, 0.1, {}, 0.1, {true}}};
+   static const std::vector<SampleDefinition> definitions = GenerateTestSensors();
 
    if (definitions.empty())
       return;
