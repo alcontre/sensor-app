@@ -5,7 +5,11 @@
 #include "SensorDataTestGenerator.h"
 #include "SensorTreeModel.h"
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
+#include <chrono>
+#include <fstream>
 #include <functional>
 #include <string>
 #include <unordered_set>
@@ -86,6 +90,8 @@ void MainFrame::CreateMenuBar()
    menuFile->AppendSeparator();
    menuFile->Append(ID_RotateLog, "&Rotate Log",
        "Finish the current log file and start a new one");
+   menuFile->Append(ID_LoadLog, "&Load Log...",
+       "Load a recorded JSON log file");
    menuFile->AppendSeparator();
    menuFile->Append(ID_SavePlotConfig, "&Save Plot Configuration...",
        "Write the open plots and their assigned sensors to a config file");
@@ -221,6 +227,7 @@ void MainFrame::BindEvents()
    Bind(wxEVT_MENU, &MainFrame::OnRotateLog, this, ID_RotateLog);
    Bind(wxEVT_MENU, &MainFrame::OnSavePlotConfig, this, ID_SavePlotConfig);
    Bind(wxEVT_MENU, &MainFrame::OnLoadPlotConfig, this, ID_LoadPlotConfig);
+   Bind(wxEVT_MENU, &MainFrame::OnLoadLog, this, ID_LoadLog);
    Bind(wxEVT_MENU, &MainFrame::OnClearTree, this, ID_ClearTree);
    Bind(wxEVT_MENU, &MainFrame::OnFocusFilter, this, ID_FocusFilter);
    // Toggle expand/collapse on double-click (item activated)
@@ -635,8 +642,8 @@ std::vector<Node *> MainFrame::CollectPlotEligibleNodes(wxString &messageOut) co
 
    if (!skipped.empty()) {
       wxString summary = "Skipped sensors:\n";
-      for (const wxString &label : skipped) {
-         summary += "- " + label + "\n";
+      for (const wxString &line : skipped) {
+         summary += "- " + line + "\n";
       }
       messageOut = summary;
    } else {
@@ -941,4 +948,106 @@ void MainFrame::OnClose(wxCloseEvent &event)
 
    // Proceed with default close handling
    event.Skip();
+}
+
+void MainFrame::OnLoadLog(wxCommandEvent &event)
+{
+   wxFileDialog openFileDialog(this, "Open JSON Log file", "", "",
+       "JSON files (*.json)|*.json", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+
+   if (openFileDialog.ShowModal() == wxID_CANCEL)
+      return;
+
+   std::ifstream file(openFileDialog.GetPath().ToStdString());
+   if (!file.is_open()) {
+      wxLogError("Cannot open file '%s'.", openFileDialog.GetPath());
+      return;
+   }
+
+   try {
+      nlohmann::json j;
+      file >> j;
+
+      if (!j.contains("data") || !j["data"].is_array()) {
+         wxLogError("Invalid JSON format: 'data' array not found.");
+         return;
+      }
+
+      // Stop generation if active
+      if (m_generationActive) {
+         m_generationActive = false;
+         // Update UI check item
+         wxMenuBar *menuBar = GetMenuBar();
+         if (menuBar) {
+            menuBar->Check(ID_ToggleDataGen, false);
+         }
+      }
+
+      // Clear existing tree
+      m_treeModel->Clear();
+      m_expandedNodes.clear();
+
+      double maxElapsed = 0.0;
+      for (const auto &item : j["data"]) {
+         if (item.contains("elapsed_seconds")) {
+            double elapsed = item["elapsed_seconds"].get<double>();
+            if (elapsed > maxElapsed)
+               maxElapsed = elapsed;
+         }
+      }
+
+      auto now = std::chrono::steady_clock::now();
+
+      for (const auto &item : j["data"]) {
+         if (!item.contains("path") || !item.contains("value"))
+            continue;
+
+         std::vector<std::string> path = item["path"].get<std::vector<std::string>>();
+
+         auto getValue = [](const nlohmann::json &val) -> DataValue {
+            if (val.is_boolean())
+               return DataValue(val.get<bool>());
+            if (val.is_number_integer())
+               return DataValue(val.get<int64_t>());
+            if (val.is_number_float())
+               return DataValue(val.get<double>());
+            if (val.is_string())
+               return DataValue(val.get<std::string>());
+            return DataValue(0);
+         };
+
+         DataValue value = getValue(item["value"]);
+
+         std::optional<DataValue> lower;
+         if (item.contains("lower_threshold") && !item["lower_threshold"].is_null()) {
+            lower = getValue(item["lower_threshold"]);
+         }
+
+         std::optional<DataValue> upper;
+         if (item.contains("upper_threshold") && !item["upper_threshold"].is_null()) {
+            upper = getValue(item["upper_threshold"]);
+         }
+
+         bool failed = false;
+         if (item.contains("failed")) {
+            failed = item["failed"].get<bool>();
+         }
+
+         double elapsed = 0.0;
+         if (item.contains("elapsed_seconds")) {
+            elapsed = item["elapsed_seconds"].get<double>();
+         }
+
+         auto timestamp = now - std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                                    std::chrono::duration<double>(maxElapsed - elapsed));
+
+         m_treeModel->AddDataSample(path, value, lower, upper, failed, timestamp);
+      }
+
+      // Refresh view
+      ExpandDescendants(m_treeCtrl, wxDataViewItem(NULL), m_treeModel);
+
+   } catch (const std::exception &e) {
+      wxLogError("Error parsing JSON: %s", e.what());
+   }
 }

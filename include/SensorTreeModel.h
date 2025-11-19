@@ -16,9 +16,10 @@ class SensorTreeModel : public wxDataViewModel
    ~SensorTreeModel() override;
 
    void AddDataSample(const std::vector<std::string> &path, const DataValue &value,
-       std::optional<DataValue> lowerThreshold = std::nullopt,
-       std::optional<DataValue> upperThreshold = std::nullopt,
-       bool failed                             = false);
+       std::optional<DataValue> lowerThreshold                        = std::nullopt,
+       std::optional<DataValue> upperThreshold                        = std::nullopt,
+       bool failed                                                    = false,
+       std::optional<std::chrono::steady_clock::time_point> timestamp = std::nullopt);
 
    void SetFilter(const wxString &filterText);
    const wxString &GetFilter() const { return m_filter; }

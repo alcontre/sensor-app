@@ -44,6 +44,7 @@ enum
 
    ID_SavePlotConfig,
    ID_LoadPlotConfig,
+   ID_LoadLog,
 
    // Command helpers
    ID_FocusFilter
@@ -106,6 +107,7 @@ class MainFrame : public wxFrame
    void OnClearTree(wxCommandEvent &event);
    void OnSavePlotConfig(wxCommandEvent &event);
    void OnLoadPlotConfig(wxCommandEvent &event);
+   void OnLoadLog(wxCommandEvent &event);
    void OnFocusFilter(wxCommandEvent &event);
    void OnFilterEnter(wxCommandEvent &event);
    void StartDataTestGeneration();

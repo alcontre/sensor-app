@@ -46,9 +46,10 @@ Node *Node::FindChild(const std::string &name) const
 void Node::SetValue(const DataValue &value,
     std::optional<DataValue> lowerThreshold,
     std::optional<DataValue> upperThreshold,
-    bool failed)
+    bool failed,
+    std::optional<std::chrono::steady_clock::time_point> timestamp)
 {
-   auto now         = std::chrono::steady_clock::now();
+   auto now         = timestamp.value_or(std::chrono::steady_clock::now());
    m_value          = value;
    m_hasValue       = true;
    m_lowerThreshold = std::move(lowerThreshold);
