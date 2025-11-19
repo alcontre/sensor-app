@@ -500,17 +500,57 @@ size_t SensorTreeModel::CountFailedDescendants(const Node *node) const
    if (!node)
       return 0;
 
-   size_t count = 0;
+   // Helper lambda to check visibility and count failures in one pass
+   // Returns {isVisible, failedCount}
+   std::function<std::pair<bool, size_t>(const Node *)> checkVisibilityAndCount =
+       [&](const Node *n) -> std::pair<bool, size_t> {
+      if (!n)
+         return {false, 0};
+
+      size_t failedCount   = 0;
+      bool anyChildVisible = false;
+
+      for (const auto &child : n->GetChildren()) {
+         auto result = checkVisibilityAndCount(child.get());
+         if (result.first) {
+            anyChildVisible = true;
+            failedCount += result.second;
+         }
+      }
+
+      // Replicate IsNodeVisible logic
+      if (m_showFailuresOnly) {
+         const bool nodeFailed = n->HasValue() && n->IsFailed();
+         if (!nodeFailed && !anyChildVisible)
+            return {false, 0};
+      }
+
+      bool visible = false;
+      if (m_filterLower.IsEmpty()) {
+         visible = true;
+      } else if (NodeMatchesFilter(n)) {
+         visible = true;
+      } else {
+         visible = anyChildVisible;
+      }
+
+      if (!visible)
+         return {false, 0};
+
+      if (n->HasValue() && n->IsFailed()) {
+         failedCount++;
+      }
+
+      return {true, failedCount};
+   };
+
+   size_t totalFailed = 0;
    for (const auto &child : node->GetChildren()) {
-      const Node *childPtr = child.get();
-      if (!childPtr)
-         continue;
-
-      if (childPtr->HasValue() && childPtr->IsFailed())
-         ++count;
-
-      count += CountFailedDescendants(childPtr);
+      auto result = checkVisibilityAndCount(child.get());
+      if (result.first) {
+         totalFailed += result.second;
+      }
    }
 
-   return count;
+   return totalFailed;
 }
