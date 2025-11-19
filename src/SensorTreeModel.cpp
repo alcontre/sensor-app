@@ -44,7 +44,8 @@ void SensorTreeModel::SetExpansionQuery(std::function<bool(const Node *)> query)
 void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
     std::optional<DataValue> lowerThreshold,
     std::optional<DataValue> upperThreshold,
-    bool failed)
+    bool failed,
+    std::optional<std::chrono::steady_clock::time_point> timestamp)
 {
    if (path.empty())
       return;
@@ -99,7 +100,7 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
       }
    }
 
-   node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
+   node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed, timestamp);
 
    std::vector<bool> afterStates;
    afterStates.reserve(fullPath.size());

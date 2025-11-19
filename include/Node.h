@@ -33,9 +33,10 @@ class Node
    const std::optional<DataValue> &GetUpperThreshold() const { return m_upperThreshold; }
    bool IsFailed() const { return m_failed; }
    void SetValue(const DataValue &value,
-       std::optional<DataValue> lowerThreshold = std::nullopt,
-       std::optional<DataValue> upperThreshold = std::nullopt,
-       bool failed                             = false);
+       std::optional<DataValue> lowerThreshold                        = std::nullopt,
+       std::optional<DataValue> upperThreshold                        = std::nullopt,
+       bool failed                                                    = false,
+       std::optional<std::chrono::steady_clock::time_point> timestamp = std::nullopt);
    double GetSecondsSinceUpdate() const;
 
    // Tree utilities
