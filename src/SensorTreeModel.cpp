@@ -365,8 +365,14 @@ void SensorTreeModel::RefreshElapsedTimes()
       if (IsNodeVisible(node)) {
          ItemChanged(CreateItemFromNode(node));
       }
-      for (const auto &child : node->GetChildren()) {
-         refresh(child.get());
+
+      // Optimization: Only traverse children if the parent is expanded.
+      // If the node is collapsed, its children are not visible in the view,
+      // so we don't need to refresh their elapsed times.
+      if (m_isNodeExpanded && m_isNodeExpanded(node)) {
+         for (const auto &child : node->GetChildren()) {
+            refresh(child.get());
+         }
       }
    };
 
