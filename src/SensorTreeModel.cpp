@@ -502,6 +502,8 @@ size_t SensorTreeModel::CountFailedDescendants(const Node *node) const
 
    // Helper lambda to check visibility and count failures in one pass
    // Returns {isVisible, failedCount}
+   // This ensures we only count failures for nodes that are actually visible to the user
+   // based on current filters (text filter and "show failures only" mode).
    std::function<std::pair<bool, size_t>(const Node *)> checkVisibilityAndCount =
        [&](const Node *n) -> std::pair<bool, size_t> {
       if (!n)
@@ -510,6 +512,8 @@ size_t SensorTreeModel::CountFailedDescendants(const Node *node) const
       size_t failedCount   = 0;
       bool anyChildVisible = false;
 
+      // Bottom-up traversal: Check children first.
+      // A parent is often visible only because it has a visible child.
       for (const auto &child : n->GetChildren()) {
          auto result = checkVisibilityAndCount(child.get());
          if (result.first) {
@@ -518,25 +522,31 @@ size_t SensorTreeModel::CountFailedDescendants(const Node *node) const
          }
       }
 
-      // Replicate IsNodeVisible logic
+      // Replicate IsNodeVisible logic to determine if this node is visible.
+
+      // 1. Check "Show Failures Only" mode
       if (m_showFailuresOnly) {
          const bool nodeFailed = n->HasValue() && n->IsFailed();
          if (!nodeFailed && !anyChildVisible)
-            return {false, 0};
+            return {false, 0}; // Hidden -> Return 0 failures (prune branch)
       }
 
+      // 2. Check Text Filter
       bool visible = false;
       if (m_filterLower.IsEmpty()) {
          visible = true;
       } else if (NodeMatchesFilter(n)) {
          visible = true;
       } else {
+         // If no direct match, it's visible if it has visible children (path to child)
          visible = anyChildVisible;
       }
 
+      // If the node is hidden, we don't count its failures or its children's failures
       if (!visible)
          return {false, 0};
 
+      // If visible, add this node's failure status to the count
       if (n->HasValue() && n->IsFailed()) {
          failedCount++;
       }
