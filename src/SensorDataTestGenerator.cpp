@@ -118,7 +118,7 @@ wxThread::ExitCode SensorDataTestGenerator::Entry()
 
       if (isActive) {
          QueueRandomDataSample();
-         wxThread::Sleep(20);
+         wxThread::Sleep(10);
       } else {
          wxThread::Sleep(100);
       }
