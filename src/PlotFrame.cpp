@@ -141,9 +141,14 @@ class PlotFrame::PlotCanvas : public wxPanel
       const auto windowDuration = m_owner->GetTimeRangeDuration();
       const auto now            = std::chrono::steady_clock::now();
 
-      auto windowStart = std::chrono::steady_clock::time_point::min();
+      // Define the time window that maps to the plot rectangle.
+      // For fixed windows we end at the newest known sample (or now, whichever is later).
+      const auto viewEnd   = std::max(now, latestOverall);
+      const bool hasWindow = static_cast<bool>(windowDuration);
+
+      auto viewStart = std::chrono::steady_clock::time_point::min();
       if (windowDuration)
-         windowStart = now - *windowDuration;
+         viewStart = viewEnd - *windowDuration;
 
       std::vector<std::vector<const TimedSample *>> raw(series.size());
       bool hasNumericSamples = false;
@@ -167,9 +172,40 @@ class PlotFrame::PlotCanvas : public wxPanel
          auto &bucket = raw[idx];
          bucket.reserve(history.size());
 
+         // When plotting a time window, keep one pre/post window sample (if any)
+         // so the polyline can connect to the off-screen points and get clipped at
+         // the plot boundaries instead of disappearing.
+         const TimedSample *preWindowSample  = nullptr;
+         const TimedSample *postWindowSample = nullptr;
+         bool addedPreWindow                 = false;
+         bool addedPostWindow                = false;
+         bool hasVisibleSample               = false;
+
          for (const TimedSample &sample : history) {
-            if (windowDuration && sample.timestamp < windowStart)
+            if (hasWindow && sample.timestamp < viewStart) {
+               preWindowSample = &sample;
                continue;
+            }
+
+            if (hasWindow && sample.timestamp > viewEnd) {
+               // Keep only the first post-window point, and only if we have at least
+               // one in-window sample to connect from.
+               if (hasVisibleSample) {
+                  postWindowSample = &sample;
+               }
+               break;
+            }
+
+            if (hasWindow && !addedPreWindow && preWindowSample) {
+               bucket.push_back(preWindowSample);
+               addedPreWindow = true;
+            }
+
+            // Only compute axis ranges/labels based on samples in the visible window.
+            const bool isVisible = !hasWindow || (sample.timestamp >= viewStart && sample.timestamp <= viewEnd);
+            if (!isVisible)
+               continue;
+            hasVisibleSample = true;
 
             const DataValue &value = sample.value;
 
@@ -191,6 +227,9 @@ class PlotFrame::PlotCanvas : public wxPanel
             earliest = std::min(earliest, sample.timestamp);
             latest   = std::max(latest, sample.timestamp);
          }
+
+         if (postWindowSample && !addedPostWindow)
+            bucket.push_back(postWindowSample);
       }
 
       if (!hasData) {
@@ -305,13 +344,10 @@ class PlotFrame::PlotCanvas : public wxPanel
          maxValue += 1.0;
       }
 
-      // Nominally the plot end is "now", but cover the corner case where a sample
-      // timestamp is just beyond now.
-      auto plotEnd = std::max(now, latest);
-
       // Compute the plot start time based on the window duration (or the earliest sample
       // when no window is set).
-      auto plotStart = windowDuration ? (plotEnd - *windowDuration) : earliest;
+      auto plotStart = windowDuration ? viewStart : earliest;
+      auto plotEnd   = windowDuration ? viewEnd : std::max(now, latest);
       if (plotStart > plotEnd)
          plotStart = plotEnd - std::chrono::milliseconds(1);
 
@@ -430,6 +466,10 @@ class PlotFrame::PlotCanvas : public wxPanel
       const double markerRadius   = 2.0;
       const double markerDiameter = markerRadius * 2.0;
 
+      auto isPointInsidePlot = [&](const wxPoint2DDouble &point) {
+         return point.m_x >= leftX && point.m_x <= rightX && point.m_y >= topY && point.m_y <= bottomY;
+      };
+
       for (size_t idx = 0; idx < series.size(); ++idx) {
          const auto &entry           = series[idx];
          const auto &filteredHistory = filtered[idx];
@@ -443,6 +483,11 @@ class PlotFrame::PlotCanvas : public wxPanel
             pointCache.push_back(toPoint(sample));
          }
 
+         // Clip series rendering to the plot rectangle so off-screen points still
+         // contribute to the stroke, but nothing bleeds into the margins.
+         gc->PushState();
+         gc->Clip(leftX, topY, static_cast<double>(plotWidth), static_cast<double>(plotHeight));
+
          gc->SetPen(entry.pen);
          if (pointCache.size() >= 2) {
             wxGraphicsPath seriesPath = gc->CreatePath();
@@ -454,8 +499,12 @@ class PlotFrame::PlotCanvas : public wxPanel
 
          gc->SetBrush(entry.brush);
          for (const wxPoint2DDouble &point : pointCache) {
+            if (!isPointInsidePlot(point))
+               continue;
             gc->DrawEllipse(point.m_x - markerRadius, point.m_y - markerRadius, markerDiameter, markerDiameter);
          }
+
+         gc->PopState();
       }
 
       drawLegend(leftMargin + 8, plotTop + 24);
