@@ -3,6 +3,10 @@
 #include "Node.h"
 #include "SensorTreeModel.h"
 
+#include <wx/dcbuffer.h>
+#include <wx/geometry.h>
+#include <wx/graphics.h>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -14,10 +18,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <wx/dcbuffer.h>
-#include <wx/geometry.h>
-#include <wx/graphics.h>
 
 class PlotFrame::PlotCanvas : public wxPanel
 {
