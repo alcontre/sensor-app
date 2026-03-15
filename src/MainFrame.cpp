@@ -920,6 +920,12 @@ void MainFrame::OnToggleDataGenerator(wxCommandEvent &event)
 
 void MainFrame::OnClose(wxCloseEvent &event)
 {
+   // Stop accepting sensor data before tearing anything down.  The detached
+   // generator threads may still queue events after StopDataTestGeneration()
+   // returns, so unbinding the handler prevents those pending events from
+   // reaching OnSensorData after the model is deleted.
+   Unbind(wxEVT_SENSOR_DATA_SAMPLE, &MainFrame::OnSensorData, this);
+
    StopDataTestGeneration();
    if (m_ageTimer.IsRunning()) {
       m_ageTimer.Stop();
