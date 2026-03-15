@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <variant>
@@ -80,6 +81,41 @@ class DataValue
  private:
    e_Type m_type;
    std::variant<std::int64_t, bool, double, std::string> m_value;
+};
+
+enum class SensorAlarmState
+{
+   Ok,
+   Warn,
+   Failed
+};
+
+inline const char *ToString(SensorAlarmState state)
+{
+   switch (state) {
+      case SensorAlarmState::Ok:
+         return "ok";
+      case SensorAlarmState::Warn:
+         return "warn";
+      case SensorAlarmState::Failed:
+         return "failed";
+   }
+
+   return "ok";
+}
+
+struct SensorThresholds
+{
+   std::optional<DataValue> lowerCritical;
+   std::optional<DataValue> lowerNonCritical;
+   std::optional<DataValue> upperNonCritical;
+   std::optional<DataValue> upperCritical;
+
+   bool HasAny() const
+   {
+      return lowerCritical.has_value() || lowerNonCritical.has_value() ||
+             upperNonCritical.has_value() || upperCritical.has_value();
+   }
 };
 
 // Individual data sample with hierarchical path

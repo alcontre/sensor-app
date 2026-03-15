@@ -3,7 +3,6 @@
 
 #include <wx/event.h>
 
-#include <optional>
 #include <vector>
 
 // Custom event carrying sensor data samples queued into the UI thread
@@ -14,9 +13,8 @@ class SensorDataEvent : public wxCommandEvent
  public:
    SensorDataEvent();
    SensorDataEvent(const std::vector<std::string> &path, const DataValue &value,
-       std::optional<DataValue> lowerThreshold = std::nullopt,
-       std::optional<DataValue> upperThreshold = std::nullopt,
-       bool failed                             = false);
+       SensorThresholds thresholds = {},
+       SensorAlarmState alarmState = SensorAlarmState::Ok);
    SensorDataEvent(const SensorDataEvent &other);
 
    // Required for wxWidgets event cloning
@@ -24,14 +22,14 @@ class SensorDataEvent : public wxCommandEvent
 
    const std::vector<std::string> &GetPath() const { return m_path; }
    const DataValue &GetValue() const { return m_value; }
-   const std::optional<DataValue> &GetLowerThreshold() const { return m_lowerThreshold; }
-   const std::optional<DataValue> &GetUpperThreshold() const { return m_upperThreshold; }
-   bool IsFailed() const { return m_failed; }
+   const SensorThresholds &GetThresholds() const { return m_thresholds; }
+   SensorAlarmState GetAlarmState() const { return m_alarmState; }
+   bool IsWarn() const { return m_alarmState == SensorAlarmState::Warn; }
+   bool IsFailed() const { return m_alarmState == SensorAlarmState::Failed; }
 
  private:
    std::vector<std::string> m_path;
    DataValue m_value;
-   std::optional<DataValue> m_lowerThreshold;
-   std::optional<DataValue> m_upperThreshold;
-   bool m_failed;
+   SensorThresholds m_thresholds;
+   SensorAlarmState m_alarmState;
 };

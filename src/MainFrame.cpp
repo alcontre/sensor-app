@@ -36,7 +36,7 @@ MainFrame::MainFrame() :
         wxDefaultPosition, wxSize(800, 600)),
     m_treeCtrl(nullptr),
     m_filterCtrl(nullptr),
-    m_showFailuresOnlyCheck(nullptr),
+    m_showAlarmedOnlyCheck(nullptr),
     m_networkIndicator(nullptr),
     m_rotateLogButton(nullptr),
     m_clearTreeButton(nullptr),
@@ -158,8 +158,10 @@ void MainFrame::CreateSensorTreeView()
    // Add columns
    m_treeCtrl->AppendTextColumn("Name", SensorTreeModel::COL_NAME, wxDATAVIEW_CELL_INERT, 200);
    m_treeCtrl->AppendTextColumn("Value", SensorTreeModel::COL_VALUE, wxDATAVIEW_CELL_INERT, 120, wxALIGN_CENTER); // value display
-   m_treeCtrl->AppendTextColumn("Lower Threshold", SensorTreeModel::COL_LOWER_THRESHOLD, wxDATAVIEW_CELL_INERT, 130, wxALIGN_CENTER);
-   m_treeCtrl->AppendTextColumn("Upper Threshold", SensorTreeModel::COL_UPPER_THRESHOLD, wxDATAVIEW_CELL_INERT, 130, wxALIGN_CENTER);
+   m_treeCtrl->AppendTextColumn("LCR", SensorTreeModel::COL_LOWER_CRITICAL_THRESHOLD, wxDATAVIEW_CELL_INERT, 90, wxALIGN_CENTER);
+   m_treeCtrl->AppendTextColumn("LNC", SensorTreeModel::COL_LOWER_NON_CRITICAL_THRESHOLD, wxDATAVIEW_CELL_INERT, 90, wxALIGN_CENTER);
+   m_treeCtrl->AppendTextColumn("UNC", SensorTreeModel::COL_UPPER_NON_CRITICAL_THRESHOLD, wxDATAVIEW_CELL_INERT, 90, wxALIGN_CENTER);
+   m_treeCtrl->AppendTextColumn("UCR", SensorTreeModel::COL_UPPER_CRITICAL_THRESHOLD, wxDATAVIEW_CELL_INERT, 90, wxALIGN_CENTER);
    m_treeCtrl->AppendTextColumn("Last Updated", SensorTreeModel::COL_ELAPSED, wxDATAVIEW_CELL_INERT, 100, wxALIGN_CENTER);
    m_treeCtrl->AppendTextColumn("Updates", SensorTreeModel::COL_UPDATE_COUNT, wxDATAVIEW_CELL_INERT, 90, wxALIGN_CENTER);
 
@@ -185,8 +187,8 @@ void MainFrame::CreateSensorTreeView()
    m_clearTreeButton = new wxButton(panel, ID_ClearTree, "&Clear");
    m_clearTreeButton->SetToolTip("Remove all sensor data from the tree view");
 
-   m_showFailuresOnlyCheck = new wxCheckBox(panel, wxID_ANY, "&Show failures only");
-   m_showFailuresOnlyCheck->SetToolTip("Only display sensors currently in a failed state");
+   m_showAlarmedOnlyCheck = new wxCheckBox(panel, wxID_ANY, "Show &fail/warn only");
+   m_showAlarmedOnlyCheck->SetToolTip("Only display sensors currently in a warning or failed state");
 
    // Add sensor filter text box
    // Process Enter locally so the key does not bubble to menu accelerators (e.g. About on Windows).
@@ -196,7 +198,7 @@ void MainFrame::CreateSensorTreeView()
    filterSizer->Add(m_networkIndicator, 0, wxALIGN_CENTER_VERTICAL);
    filterSizer->Add(m_rotateLogButton, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
    filterSizer->Add(m_clearTreeButton, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
-   filterSizer->Add(m_showFailuresOnlyCheck, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
+   filterSizer->Add(m_showAlarmedOnlyCheck, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
    filterSizer->Add(m_filterCtrl, 1, wxEXPAND | wxLEFT, 8);
 
    sizer->Add(filterSizer, 0, wxEXPAND | wxALL, 5);
@@ -238,7 +240,7 @@ void MainFrame::BindEvents()
    m_filterCtrl->Bind(wxEVT_TEXT, &MainFrame::OnFilterTextChanged, this);
    m_filterCtrl->Bind(wxEVT_TEXT_ENTER, &MainFrame::OnFilterEnter, this);
 
-   m_showFailuresOnlyCheck->Bind(wxEVT_CHECKBOX, &MainFrame::OnShowFailuresOnly, this);
+   m_showAlarmedOnlyCheck->Bind(wxEVT_CHECKBOX, &MainFrame::OnShowAlarmedOnly, this);
 
    Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectYes);
    Bind(wxEVT_THREAD, &MainFrame::OnConnectionStatus, this, ID_ConnectNo);
@@ -257,12 +259,12 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
       return;
 
    m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
-       sampleEvent->GetLowerThreshold(), sampleEvent->GetUpperThreshold(), sampleEvent->IsFailed());
+       sampleEvent->GetThresholds(), sampleEvent->GetAlarmState());
    if (m_dataRecorder)
       m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
-          sampleEvent->GetLowerThreshold(), sampleEvent->GetUpperThreshold(), sampleEvent->IsFailed());
+          sampleEvent->GetThresholds(), sampleEvent->GetAlarmState());
 
-   if (m_showFailuresOnlyCheck->IsChecked()) {
+   if (m_showAlarmedOnlyCheck->IsChecked()) {
       m_treeCtrl->Freeze();
       RestoreExpansionState();
       m_treeCtrl->Thaw();
@@ -301,10 +303,10 @@ void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
    m_treeCtrl->Thaw();
 }
 
-void MainFrame::OnShowFailuresOnly(wxCommandEvent &event)
+void MainFrame::OnShowAlarmedOnly(wxCommandEvent &event)
 {
    m_treeCtrl->Freeze();
-   m_treeModel->SetShowFailuresOnly(event.IsChecked());
+   m_treeModel->SetShowAlarmedOnly(event.IsChecked());
    RestoreExpansionState();
    m_treeCtrl->Thaw();
 }

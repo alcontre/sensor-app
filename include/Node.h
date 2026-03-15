@@ -29,13 +29,18 @@ class Node
    // Data value (leaf nodes can have values)
    bool HasValue() const { return m_hasValue; }
    const DataValue &GetValue() const { return m_value; }
-   const std::optional<DataValue> &GetLowerThreshold() const { return m_lowerThreshold; }
-   const std::optional<DataValue> &GetUpperThreshold() const { return m_upperThreshold; }
-   bool IsFailed() const { return m_failed; }
+   const SensorThresholds &GetThresholds() const { return m_thresholds; }
+   const std::optional<DataValue> &GetLowerCriticalThreshold() const { return m_thresholds.lowerCritical; }
+   const std::optional<DataValue> &GetLowerNonCriticalThreshold() const { return m_thresholds.lowerNonCritical; }
+   const std::optional<DataValue> &GetUpperNonCriticalThreshold() const { return m_thresholds.upperNonCritical; }
+   const std::optional<DataValue> &GetUpperCriticalThreshold() const { return m_thresholds.upperCritical; }
+   SensorAlarmState GetAlarmState() const { return m_alarmState; }
+   bool IsWarn() const { return m_alarmState == SensorAlarmState::Warn; }
+   bool IsFailed() const { return m_alarmState == SensorAlarmState::Failed; }
+   bool IsAlarmed() const { return m_alarmState != SensorAlarmState::Ok; }
    void SetValue(const DataValue &value,
-       std::optional<DataValue> lowerThreshold = std::nullopt,
-       std::optional<DataValue> upperThreshold = std::nullopt,
-       bool failed                             = false);
+       SensorThresholds thresholds = {},
+       SensorAlarmState alarmState = SensorAlarmState::Ok);
    double GetSecondsSinceUpdate() const;
 
    // Tree utilities
@@ -53,7 +58,7 @@ class Node
    {
       std::chrono::steady_clock::time_point timestamp;
       DataValue value;
-      bool failed;
+      SensorAlarmState alarmState;
    };
 
    const std::deque<TimedSample> &GetHistory() const { return m_history; }
@@ -69,9 +74,8 @@ class Node
 
    bool m_hasValue;
    DataValue m_value;
-   std::optional<DataValue> m_lowerThreshold;
-   std::optional<DataValue> m_upperThreshold;
-   bool m_failed;
+   SensorThresholds m_thresholds;
+   SensorAlarmState m_alarmState;
    std::chrono::steady_clock::time_point m_lastUpdate;
    std::deque<TimedSample> m_history;
    size_t m_historyLimit;

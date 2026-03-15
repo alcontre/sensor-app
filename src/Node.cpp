@@ -11,9 +11,8 @@ Node::Node(const std::string &name, Node *parent) :
     m_parent(parent),
     m_hasValue(false),
     m_value(0.0), // Default constructor for DataValue
-    m_lowerThreshold(std::nullopt),
-    m_upperThreshold(std::nullopt),
-    m_failed(false),
+    m_thresholds(),
+    m_alarmState(SensorAlarmState::Ok),
     m_lastUpdate(std::chrono::steady_clock::time_point{}),
     m_history(),
     m_historyLimit(1024),
@@ -44,22 +43,20 @@ Node *Node::FindChild(const std::string &name) const
 }
 
 void Node::SetValue(const DataValue &value,
-    std::optional<DataValue> lowerThreshold,
-    std::optional<DataValue> upperThreshold,
-    bool failed)
+    SensorThresholds thresholds,
+    SensorAlarmState alarmState)
 {
-   auto now         = std::chrono::steady_clock::now();
-   m_value          = value;
-   m_hasValue       = true;
-   m_lowerThreshold = std::move(lowerThreshold);
-   m_upperThreshold = std::move(upperThreshold);
-   m_failed         = failed;
-   m_lastUpdate     = now;
+   auto now     = std::chrono::steady_clock::now();
+   m_value      = value;
+   m_hasValue   = true;
+   m_thresholds = std::move(thresholds);
+   m_alarmState = alarmState;
+   m_lastUpdate = now;
    ++m_updateCount;
 
    wxASSERT(m_historyLimit > 0);
 
-   TimedSample sample{now, value, failed};
+   TimedSample sample{now, value, alarmState};
    m_history.push_back(sample);
    while (m_history.size() > m_historyLimit) {
       m_history.pop_front();

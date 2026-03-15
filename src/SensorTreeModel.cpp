@@ -3,6 +3,55 @@
 #include <algorithm>
 #include <utility>
 
+namespace {
+
+wxColour WarningColor()
+{
+   return wxColour(255, 140, 0);
+}
+
+const wxColour &FailColor()
+{
+   return *wxRED;
+}
+
+bool IsAlarmSummaryColumn(unsigned int col)
+{
+   switch (col) {
+      case SensorTreeModel::COL_VALUE:
+      case SensorTreeModel::COL_LOWER_CRITICAL_THRESHOLD:
+      case SensorTreeModel::COL_LOWER_NON_CRITICAL_THRESHOLD:
+      case SensorTreeModel::COL_UPPER_NON_CRITICAL_THRESHOLD:
+      case SensorTreeModel::COL_UPPER_CRITICAL_THRESHOLD:
+      case SensorTreeModel::COL_UPDATE_COUNT:
+         return true;
+      default:
+         return false;
+   }
+}
+
+wxString FormatAlarmSummaryText(const SensorTreeModel::AlarmSummary &summary)
+{
+   wxString text;
+
+   if (summary.failureCount > 0) {
+      text = wxString::Format("%zu fail", summary.failureCount);
+   }
+
+   if (summary.warningCount > 0) {
+      wxString warningText = wxString::Format("%zu warn", summary.warningCount);
+      if (text.IsEmpty()) {
+         text = warningText;
+      } else {
+         text += ", " + warningText;
+      }
+   }
+
+   return text;
+}
+
+} // namespace
+
 SensorTreeModel::SensorTreeModel()
 {
 }
@@ -11,12 +60,12 @@ SensorTreeModel::~SensorTreeModel()
 {
 }
 
-void SensorTreeModel::SetShowFailuresOnly(bool showFailuresOnly)
+void SensorTreeModel::SetShowAlarmedOnly(bool showAlarmedOnly)
 {
-   if (m_showFailuresOnly == showFailuresOnly)
+   if (m_showAlarmedOnly == showAlarmedOnly)
       return;
 
-   m_showFailuresOnly = showFailuresOnly;
+   m_showAlarmedOnly = showAlarmedOnly;
    Cleared();
 }
 
@@ -42,9 +91,8 @@ void SensorTreeModel::SetExpansionQuery(std::function<bool(const Node *)> query)
 }
 
 void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
-    std::optional<DataValue> lowerThreshold,
-    std::optional<DataValue> upperThreshold,
-    bool failed)
+    SensorThresholds thresholds,
+    SensorAlarmState alarmState)
 {
    if (path.empty())
       return;
@@ -99,7 +147,7 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
       }
    }
 
-   node->SetValue(value, std::move(lowerThreshold), std::move(upperThreshold), failed);
+   node->SetValue(value, std::move(thresholds), alarmState);
 
    std::vector<bool> afterStates;
    afterStates.reserve(fullPath.size());
@@ -212,26 +260,39 @@ void SensorTreeModel::GetValue(wxVariant &variant, const wxDataViewItem &item, u
             break;
          }
 
-         // Collapsed nodes with children failures show the failed count in red
-         const size_t failureCount = CountFailedDescendants(node);
-         const bool isExpanded     = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
-         if (failureCount > 0 && !isExpanded) {
-            variant = wxString::Format("%zu failed", failureCount);
+         const AlarmSummary alarmSummary = CountAlarmedDescendants(node);
+         const bool isExpanded           = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
+         if ((alarmSummary.failureCount > 0 || alarmSummary.warningCount > 0) && !isExpanded) {
+            variant = FormatAlarmSummaryText(alarmSummary);
          } else {
             variant = wxString("");
          }
          break;
       }
-      case COL_LOWER_THRESHOLD:
-         if (node->HasValue() && node->GetLowerThreshold()) {
-            variant = wxString(node->GetLowerThreshold()->GetDisplayString());
+      case COL_LOWER_CRITICAL_THRESHOLD:
+         if (node->HasValue() && node->GetLowerCriticalThreshold()) {
+            variant = wxString(node->GetLowerCriticalThreshold()->GetDisplayString());
          } else {
             variant = wxString("");
          }
          break;
-      case COL_UPPER_THRESHOLD:
-         if (node->HasValue() && node->GetUpperThreshold()) {
-            variant = wxString(node->GetUpperThreshold()->GetDisplayString());
+      case COL_LOWER_NON_CRITICAL_THRESHOLD:
+         if (node->HasValue() && node->GetLowerNonCriticalThreshold()) {
+            variant = wxString(node->GetLowerNonCriticalThreshold()->GetDisplayString());
+         } else {
+            variant = wxString("");
+         }
+         break;
+      case COL_UPPER_NON_CRITICAL_THRESHOLD:
+         if (node->HasValue() && node->GetUpperNonCriticalThreshold()) {
+            variant = wxString(node->GetUpperNonCriticalThreshold()->GetDisplayString());
+         } else {
+            variant = wxString("");
+         }
+         break;
+      case COL_UPPER_CRITICAL_THRESHOLD:
+         if (node->HasValue() && node->GetUpperCriticalThreshold()) {
+            variant = wxString(node->GetUpperCriticalThreshold()->GetDisplayString());
          } else {
             variant = wxString("");
          }
@@ -268,25 +329,17 @@ bool SensorTreeModel::GetAttr(const wxDataViewItem &item, unsigned int col, wxDa
    if (!node)
       return false;
 
-   if (node->HasValue() && node->IsFailed()) {
-      switch (col) {
-         case COL_VALUE:
-         case COL_LOWER_THRESHOLD:
-         case COL_UPPER_THRESHOLD:
-         case COL_UPDATE_COUNT:
-            attr.SetColour(*wxRED);
-            return true;
-         default:
-            break;
-      }
+   if (node->HasValue() && node->IsAlarmed() && IsAlarmSummaryColumn(col)) {
+      attr.SetColour(node->IsFailed() ? FailColor() : WarningColor());
+      return true;
    }
 
    if (col == COL_VALUE) {
-      // Collapsed nodes with children failures show the failed count in red
-      const bool isExpanded     = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
-      const size_t failureCount = CountFailedDescendants(node);
-      if (failureCount > 0 && !isExpanded && !node->HasValue()) {
-         attr.SetColour(*wxRED);
+      const bool isExpanded      = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
+      const AlarmSummary summary = CountAlarmedDescendants(node);
+      const bool hasAlarmedChild = summary.failureCount > 0 || summary.warningCount > 0;
+      if (hasAlarmedChild && !isExpanded && !node->HasValue()) {
+         attr.SetColour(summary.failureCount > 0 ? FailColor() : WarningColor());
          return true;
       }
    }
@@ -450,9 +503,8 @@ bool SensorTreeModel::IsNodeVisible(const Node *node) const
       }
    }
 
-   if (m_showFailuresOnly) {
-      const bool nodeFailed = node->HasValue() && node->IsFailed();
-      if (!nodeFailed && !childVisible)
+   if (m_showAlarmedOnly) {
+      if (!NodeMatchesAlarmFilter(node) && !childVisible)
          return false;
    }
 
@@ -483,6 +535,11 @@ bool SensorTreeModel::NodeNameMatchesFilter(const Node *node) const
    return name.Lower().Find(m_filterLower) != wxNOT_FOUND;
 }
 
+bool SensorTreeModel::NodeMatchesAlarmFilter(const Node *node) const
+{
+   return node && node->HasValue() && node->IsAlarmed();
+}
+
 bool SensorTreeModel::HasVisibleChildren(const Node *node) const
 {
    if (!node)
@@ -495,40 +552,37 @@ bool SensorTreeModel::HasVisibleChildren(const Node *node) const
    return false;
 }
 
-size_t SensorTreeModel::CountFailedDescendants(const Node *node) const
+SensorTreeModel::AlarmSummary SensorTreeModel::CountAlarmedDescendants(const Node *node) const
 {
    if (!node)
-      return 0;
+      return {};
 
-   // Helper lambda to check visibility and count failures in one pass
-   // Returns {isVisible, failedCount}
-   // This ensures we only count failures for nodes that are actually visible to the user
-   // based on current filters (text filter and "show failures only" mode).
-   std::function<std::pair<bool, size_t>(const Node *)> checkVisibilityAndCount =
-       [&](const Node *n) -> std::pair<bool, size_t> {
+   struct VisibilityAlarmSummary
+   {
+      bool isVisible = false;
+      AlarmSummary summary;
+   };
+
+   std::function<VisibilityAlarmSummary(const Node *)> checkVisibilityAndCount =
+       [&](const Node *n) -> VisibilityAlarmSummary {
       if (!n)
-         return {false, 0};
+         return {};
 
-      size_t failedCount   = 0;
       bool anyChildVisible = false;
+      AlarmSummary summary;
 
-      // Bottom-up traversal: Check children first.
-      // A parent is often visible only because it has a visible child.
       for (const auto &child : n->GetChildren()) {
          auto result = checkVisibilityAndCount(child.get());
-         if (result.first) {
+         if (result.isVisible) {
             anyChildVisible = true;
-            failedCount += result.second;
+            summary.warningCount += result.summary.warningCount;
+            summary.failureCount += result.summary.failureCount;
          }
       }
 
-      // Replicate IsNodeVisible logic to determine if this node is visible.
-
-      // 1. Check "Show Failures Only" mode
-      if (m_showFailuresOnly) {
-         const bool nodeFailed = n->HasValue() && n->IsFailed();
-         if (!nodeFailed && !anyChildVisible)
-            return {false, 0}; // Hidden -> Return 0 failures (prune branch)
+      if (m_showAlarmedOnly) {
+         if (!NodeMatchesAlarmFilter(n) && !anyChildVisible)
+            return {};
       }
 
       // 2. Check Text Filter
@@ -542,25 +596,28 @@ size_t SensorTreeModel::CountFailedDescendants(const Node *node) const
          visible = anyChildVisible;
       }
 
-      // If the node is hidden, we don't count its failures or its children's failures
       if (!visible)
-         return {false, 0};
+         return {};
 
-      // If visible, add this node's failure status to the count
-      if (n->HasValue() && n->IsFailed()) {
-         failedCount++;
+      if (n->HasValue()) {
+         if (n->IsFailed()) {
+            summary.failureCount++;
+         } else if (n->IsWarn()) {
+            summary.warningCount++;
+         }
       }
 
-      return {true, failedCount};
+      return {true, summary};
    };
 
-   size_t totalFailed = 0;
+   AlarmSummary total;
    for (const auto &child : node->GetChildren()) {
       auto result = checkVisibilityAndCount(child.get());
-      if (result.first) {
-         totalFailed += result.second;
+      if (result.isVisible) {
+         total.warningCount += result.summary.warningCount;
+         total.failureCount += result.summary.failureCount;
       }
    }
 
-   return totalFailed;
+   return total;
 }

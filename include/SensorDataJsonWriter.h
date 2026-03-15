@@ -4,7 +4,6 @@
 
 #include <chrono>
 #include <fstream>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,9 +19,8 @@ class SensorDataJsonWriter
    static std::string GenerateTimestampedFilename();
 
    void RecordSample(const std::vector<std::string> &path, const DataValue &value,
-       const std::optional<DataValue> &lowerThreshold = std::nullopt,
-       const std::optional<DataValue> &upperThreshold = std::nullopt,
-       bool failed                                    = false);
+       const SensorThresholds &thresholds = {},
+       SensorAlarmState alarmState        = SensorAlarmState::Ok);
 
  private:
    void Close();

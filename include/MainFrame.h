@@ -59,7 +59,7 @@ class MainFrame : public wxFrame
    void OnAbout(wxCommandEvent &event);
    void OnToggleDataGenerator(wxCommandEvent &event);
    void OnFilterTextChanged(wxCommandEvent &event);
-   void OnShowFailuresOnly(wxCommandEvent &event);
+   void OnShowAlarmedOnly(wxCommandEvent &event);
 
    void CreateMenuBar();
    void SetupStatusBar();
@@ -70,7 +70,7 @@ class MainFrame : public wxFrame
    wxDataViewCtrl *m_treeCtrl;
    wxTextCtrl *m_filterCtrl;
    wxPanel *m_networkIndicator;
-   wxCheckBox *m_showFailuresOnlyCheck;
+   wxCheckBox *m_showAlarmedOnlyCheck;
    wxButton *m_rotateLogButton;
    wxButton *m_clearTreeButton;
    SensorTreeModel *m_treeModel;

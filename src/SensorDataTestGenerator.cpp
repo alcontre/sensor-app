@@ -27,13 +27,25 @@ struct SampleDefinition
    std::int64_t minInteger = 0;
    std::int64_t maxInteger = 0;
    std::vector<std::string> stringOptions;
-   std::optional<DataValue> lowerThreshold;
-   std::optional<DataValue> upperThreshold;
+   SensorThresholds thresholds;
    double failureProbability = 0.0;
    std::vector<std::string> failureStringValues;
    double booleanTrueProbability = 0.5;
    std::vector<bool> failureBooleanValues;
 };
+
+SensorAlarmState ClassifyNumericAlarm(double numeric, const SensorThresholds &thresholds)
+{
+   if (thresholds.lowerCritical && numeric < thresholds.lowerCritical->GetNumeric())
+      return SensorAlarmState::Failed;
+   if (thresholds.upperCritical && numeric > thresholds.upperCritical->GetNumeric())
+      return SensorAlarmState::Failed;
+   if (thresholds.lowerNonCritical && numeric < thresholds.lowerNonCritical->GetNumeric())
+      return SensorAlarmState::Warn;
+   if (thresholds.upperNonCritical && numeric > thresholds.upperNonCritical->GetNumeric())
+      return SensorAlarmState::Warn;
+   return SensorAlarmState::Ok;
+}
 
 std::vector<SampleDefinition> GenerateTestSensors()
 {
@@ -63,19 +75,23 @@ std::vector<SampleDefinition> GenerateTestSensors()
 
             // Distribute types
             if (type == 0) { // Double
-               def.type               = SampleDefinition::ValueType::Double;
-               def.minDouble          = 0.0;
-               def.maxDouble          = 100.0;
-               def.lowerThreshold     = DataValue::FromDouble(10.0);
-               def.upperThreshold     = DataValue::FromDouble(90.0);
-               def.failureProbability = 0.05;
+               def.type                        = SampleDefinition::ValueType::Double;
+               def.minDouble                   = 0.0;
+               def.maxDouble                   = 100.0;
+               def.thresholds.lowerCritical    = DataValue::FromDouble(5.0);
+               def.thresholds.lowerNonCritical = DataValue::FromDouble(10.0);
+               def.thresholds.upperNonCritical = DataValue::FromDouble(90.0);
+               def.thresholds.upperCritical    = DataValue::FromDouble(95.0);
+               def.failureProbability          = 0.05;
             } else if (type == 1) { // Integer
-               def.type               = SampleDefinition::ValueType::Integer;
-               def.minInteger         = 0;
-               def.maxInteger         = 1000;
-               def.lowerThreshold     = DataValue::FromInt64(100);
-               def.upperThreshold     = DataValue::FromInt64(900);
-               def.failureProbability = 0.05;
+               def.type                        = SampleDefinition::ValueType::Integer;
+               def.minInteger                  = 0;
+               def.maxInteger                  = 1000;
+               def.thresholds.lowerCritical    = DataValue::FromInt64(50);
+               def.thresholds.lowerNonCritical = DataValue::FromInt64(100);
+               def.thresholds.upperNonCritical = DataValue::FromInt64(900);
+               def.thresholds.upperCritical    = DataValue::FromInt64(950);
+               def.failureProbability          = 0.05;
             } else if (type == 2) { // String
                def.type                = SampleDefinition::ValueType::String;
                def.stringOptions       = {"OK", "Warning", "Error", "Unknown"};
@@ -138,54 +154,67 @@ void SensorDataTestGenerator::QueueRandomDataSample()
    std::uniform_int_distribution<size_t> defDist(0, definitions.size() - 1);
    const auto &def = definitions[defDist(m_rng)];
 
-   DataValue value     = DataValue::FromInt64(0);
-   bool failed         = false;
-   auto lowerThreshold = def.lowerThreshold;
-   auto upperThreshold = def.upperThreshold;
+   DataValue value             = DataValue::FromInt64(0);
+   SensorAlarmState alarmState = SensorAlarmState::Ok;
+   SensorThresholds thresholds = def.thresholds;
 
    switch (def.type) {
       case SampleDefinition::ValueType::Double: {
          std::uniform_real_distribution<double> valDist(def.minDouble, def.maxDouble);
          double generated = valDist(m_rng);
 
-         bool induceFailure = def.failureProbability > 0.0 && (lowerThreshold || upperThreshold) && std::bernoulli_distribution(def.failureProbability)(m_rng);
-         if (induceFailure) {
-            const double range = std::max(1.0, def.maxDouble - def.minDouble);
-            if (lowerThreshold && (!upperThreshold || std::bernoulli_distribution(0.5)(m_rng))) {
-               generated = lowerThreshold->GetNumeric() - range * 0.2;
-            } else if (upperThreshold) {
-               generated = upperThreshold->GetNumeric() + range * 0.2;
+         bool induceAlarm = def.failureProbability > 0.0 && thresholds.HasAny() && std::bernoulli_distribution(def.failureProbability)(m_rng);
+         if (induceAlarm) {
+            const double range        = std::max(1.0, def.maxDouble - def.minDouble);
+            const bool induceCritical = std::bernoulli_distribution(0.5)(m_rng);
+            const bool useLower       = (thresholds.lowerNonCritical || thresholds.lowerCritical) &&
+                                  (!(thresholds.upperNonCritical || thresholds.upperCritical) || std::bernoulli_distribution(0.5)(m_rng));
+            if (useLower) {
+               if (induceCritical && thresholds.lowerCritical) {
+                  generated = thresholds.lowerCritical->GetNumeric() - range * 0.1;
+               } else if (thresholds.lowerNonCritical) {
+                  generated = thresholds.lowerNonCritical->GetNumeric() - range * 0.05;
+               }
+            } else {
+               if (induceCritical && thresholds.upperCritical) {
+                  generated = thresholds.upperCritical->GetNumeric() + range * 0.1;
+               } else if (thresholds.upperNonCritical) {
+                  generated = thresholds.upperNonCritical->GetNumeric() + range * 0.05;
+               }
             }
          }
 
-         value          = DataValue::FromDouble(generated);
-         double numeric = generated;
-         if (lowerThreshold && numeric < lowerThreshold->GetNumeric())
-            failed = true;
-         if (upperThreshold && numeric > upperThreshold->GetNumeric())
-            failed = true;
+         value      = DataValue::FromDouble(generated);
+         alarmState = ClassifyNumericAlarm(generated, thresholds);
          break;
       }
       case SampleDefinition::ValueType::Integer: {
          std::uniform_int_distribution<std::int64_t> valDist(def.minInteger, def.maxInteger);
          std::int64_t generated = valDist(m_rng);
 
-         bool induceFailure = def.failureProbability > 0.0 && (lowerThreshold || upperThreshold) && std::bernoulli_distribution(def.failureProbability)(m_rng);
-         if (induceFailure) {
-            const std::int64_t range = std::max<std::int64_t>(1, def.maxInteger - def.minInteger);
-            if (lowerThreshold && (!upperThreshold || std::bernoulli_distribution(0.5)(m_rng))) {
-               generated = static_cast<std::int64_t>(lowerThreshold->GetNumeric()) - std::max<std::int64_t>(1, range / 5);
-            } else if (upperThreshold) {
-               generated = static_cast<std::int64_t>(upperThreshold->GetNumeric()) + std::max<std::int64_t>(1, range / 5);
+         bool induceAlarm = def.failureProbability > 0.0 && thresholds.HasAny() && std::bernoulli_distribution(def.failureProbability)(m_rng);
+         if (induceAlarm) {
+            const std::int64_t range  = std::max<std::int64_t>(1, def.maxInteger - def.minInteger);
+            const bool induceCritical = std::bernoulli_distribution(0.5)(m_rng);
+            const bool useLower       = (thresholds.lowerNonCritical || thresholds.lowerCritical) &&
+                                  (!(thresholds.upperNonCritical || thresholds.upperCritical) || std::bernoulli_distribution(0.5)(m_rng));
+            if (useLower) {
+               if (induceCritical && thresholds.lowerCritical) {
+                  generated = static_cast<std::int64_t>(thresholds.lowerCritical->GetNumeric()) - std::max<std::int64_t>(1, range / 10);
+               } else if (thresholds.lowerNonCritical) {
+                  generated = static_cast<std::int64_t>(thresholds.lowerNonCritical->GetNumeric()) - std::max<std::int64_t>(1, range / 20);
+               }
+            } else {
+               if (induceCritical && thresholds.upperCritical) {
+                  generated = static_cast<std::int64_t>(thresholds.upperCritical->GetNumeric()) + std::max<std::int64_t>(1, range / 10);
+               } else if (thresholds.upperNonCritical) {
+                  generated = static_cast<std::int64_t>(thresholds.upperNonCritical->GetNumeric()) + std::max<std::int64_t>(1, range / 20);
+               }
             }
          }
 
-         value          = DataValue::FromInt64(generated);
-         double numeric = static_cast<double>(generated);
-         if (lowerThreshold && numeric < lowerThreshold->GetNumeric())
-            failed = true;
-         if (upperThreshold && numeric > upperThreshold->GetNumeric())
-            failed = true;
+         value      = DataValue::FromInt64(generated);
+         alarmState = ClassifyNumericAlarm(static_cast<double>(generated), thresholds);
          break;
       }
       case SampleDefinition::ValueType::String: {
@@ -202,8 +231,10 @@ void SensorDataTestGenerator::QueueRandomDataSample()
             chosen = def.stringOptions[strDist(m_rng)];
          }
 
-         value  = DataValue::FromString(chosen);
-         failed = std::find(def.failureStringValues.begin(), def.failureStringValues.end(), chosen) != def.failureStringValues.end();
+         value      = DataValue::FromString(chosen);
+         alarmState = std::find(def.failureStringValues.begin(), def.failureStringValues.end(), chosen) != def.failureStringValues.end()
+                          ? SensorAlarmState::Failed
+                          : SensorAlarmState::Ok;
          break;
       }
       case SampleDefinition::ValueType::Boolean: {
@@ -216,14 +247,16 @@ void SensorDataTestGenerator::QueueRandomDataSample()
             generated = def.failureBooleanValues[failureDist(m_rng)];
          }
 
-         value  = DataValue::FromBool(generated);
-         failed = std::any_of(def.failureBooleanValues.begin(), def.failureBooleanValues.end(),
-             [generated](bool failureVal) { return failureVal == generated; });
+         value      = DataValue::FromBool(generated);
+         alarmState = std::any_of(def.failureBooleanValues.begin(), def.failureBooleanValues.end(),
+                          [generated](bool failureVal) { return failureVal == generated; })
+                          ? SensorAlarmState::Failed
+                          : SensorAlarmState::Ok;
          break;
       }
    }
 
-   auto *evt = new SensorDataEvent(def.path, value, lowerThreshold, upperThreshold, failed);
+   auto *evt = new SensorDataEvent(def.path, value, thresholds, alarmState);
    wxQueueEvent(m_target, evt);
    QueueNewMessageEvent();
 }

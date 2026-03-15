@@ -46,9 +46,8 @@ bool SensorDataJsonWriter::IsOpen() const
 }
 
 void SensorDataJsonWriter::RecordSample(const std::vector<std::string> &path, const DataValue &value,
-    const std::optional<DataValue> &lowerThreshold,
-    const std::optional<DataValue> &upperThreshold,
-    bool failed)
+    const SensorThresholds &thresholds,
+    SensorAlarmState alarmState)
 {
    if (!m_stream.is_open())
       return;
@@ -87,13 +86,20 @@ void SensorDataJsonWriter::RecordSample(const std::vector<std::string> &path, co
    entry << "    \"value\": " << FormatValue(value);
 
    std::vector<std::string> extraFields;
-   if (lowerThreshold) {
-      extraFields.emplace_back("    \"lower_threshold\": " + FormatValue(*lowerThreshold));
+   if (thresholds.lowerCritical) {
+      extraFields.emplace_back("    \"lcr\": " + FormatValue(*thresholds.lowerCritical));
    }
-   if (upperThreshold) {
-      extraFields.emplace_back("    \"upper_threshold\": " + FormatValue(*upperThreshold));
+   if (thresholds.lowerNonCritical) {
+      extraFields.emplace_back("    \"lnc\": " + FormatValue(*thresholds.lowerNonCritical));
    }
-   extraFields.emplace_back(std::string("    \"failed\": ") + (failed ? "true" : "false"));
+   if (thresholds.upperNonCritical) {
+      extraFields.emplace_back("    \"unc\": " + FormatValue(*thresholds.upperNonCritical));
+   }
+   if (thresholds.upperCritical) {
+      extraFields.emplace_back("    \"ucr\": " + FormatValue(*thresholds.upperCritical));
+   }
+   extraFields.emplace_back(std::string("    \"status\": \"") + ToString(alarmState) + "\"");
+   extraFields.emplace_back(std::string("    \"failed\": ") + (alarmState == SensorAlarmState::Failed ? "true" : "false"));
 
    if (!extraFields.empty()) {
       entry << ",\n";
