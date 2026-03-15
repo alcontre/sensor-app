@@ -337,8 +337,6 @@ void MainFrame::RestoreExpansionState()
    std::vector<Node *> nodes;
    nodes.reserve(m_expandedNodes.size());
    for (const Node *nodePtr : m_expandedNodes) {
-      if (!nodePtr)
-         continue;
       if (!m_treeModel->IsNodeVisible(nodePtr))
          continue;
       nodes.push_back(const_cast<Node *>(nodePtr));
@@ -357,9 +355,6 @@ void MainFrame::RestoreExpansionState()
 
 void MainFrame::PruneExpansionSubtree(Node *node, bool includeRoot)
 {
-   if (!node)
-      return;
-
    std::vector<Node *> stack;
    stack.push_back(node);
 
@@ -389,8 +384,7 @@ void MainFrame::OnExpandAll(wxCommandEvent &event)
       m_treeModel->GetChildren(parent, children);
       for (const wxDataViewItem &child : children) {
          Node *node = static_cast<Node *>(child.GetID());
-         if (node)
-            m_expandedNodes.insert(node);
+         m_expandedNodes.insert(node);
          recordExpanded(child);
       }
    };
