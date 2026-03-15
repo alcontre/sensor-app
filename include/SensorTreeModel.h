@@ -14,7 +14,7 @@ class SensorTreeModel : public wxDataViewModel
    SensorTreeModel();
    ~SensorTreeModel() override;
 
-   void AddDataSample(const std::vector<std::string> &path, const DataValue &value,
+   bool AddDataSample(const std::vector<std::string> &path, const DataValue &value,
        SensorThresholds thresholds = {},
        SensorAlarmState alarmState = SensorAlarmState::Ok);
 
