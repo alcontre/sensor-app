@@ -258,13 +258,13 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
    if (!sampleEvent)
       return;
 
-   const bool visibilityChanged = m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
+   m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
        sampleEvent->GetThresholds(), sampleEvent->GetAlarmState());
    if (m_dataRecorder)
       m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
           sampleEvent->GetThresholds(), sampleEvent->GetAlarmState());
 
-   if (visibilityChanged && !m_expandedNodes.empty()) {
+   if (m_showAlarmedOnlyCheck->IsChecked()) {
       m_treeCtrl->Freeze();
       RestoreExpansionState();
       m_treeCtrl->Thaw();

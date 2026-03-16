@@ -90,12 +90,12 @@ void SensorTreeModel::SetExpansionQuery(std::function<bool(const Node *)> query)
    m_isNodeExpanded = std::move(query);
 }
 
-bool SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
+void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
     SensorThresholds thresholds,
     SensorAlarmState alarmState)
 {
    if (path.empty())
-      return false;
+      return;
 
    std::vector<Node *> existingPath;
    existingPath.reserve(path.size());
@@ -133,7 +133,7 @@ bool SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
    Node *node            = FindOrCreatePath(path, structureChanged, createdEdges);
 
    if (!node)
-      return false;
+      return;
 
    std::vector<Node *> fullPath = BuildPath(node);
 
@@ -156,13 +156,11 @@ bool SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
    }
 
    // Remove nodes that are no longer visible starting from the deepest node.
-   bool visibilityChanged = false;
    for (size_t idx = fullPath.size(); idx-- > 0;) {
       if (beforeStates[idx] && !afterStates[idx]) {
          Node *currentNode         = fullPath[idx];
          wxDataViewItem parentItem = currentNode->GetParent() ? CreateItemFromNode(currentNode->GetParent()) : wxDataViewItem(nullptr);
          ItemDeleted(parentItem, CreateItemFromNode(currentNode));
-         visibilityChanged = true;
       }
    }
 
@@ -172,7 +170,6 @@ bool SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
          Node *currentNode         = fullPath[idx];
          wxDataViewItem parentItem = currentNode->GetParent() ? CreateItemFromNode(currentNode->GetParent()) : wxDataViewItem(nullptr);
          ItemAdded(parentItem, CreateItemFromNode(currentNode));
-         visibilityChanged = true;
       }
    }
 
@@ -191,8 +188,6 @@ bool SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
          }
       }
    }
-
-   return visibilityChanged;
 }
 
 Node *SensorTreeModel::FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged, std::vector<CreatedEdge> &createdEdges)
@@ -505,7 +500,6 @@ bool SensorTreeModel::IsNodeVisible(const Node *node) const
    for (const auto &child : node->GetChildren()) {
       if (IsNodeVisible(child.get())) {
          childVisible = true;
-         break;
       }
    }
 
@@ -563,27 +557,66 @@ SensorTreeModel::AlarmSummary SensorTreeModel::CountAlarmedDescendants(const Nod
    if (!node)
       return {};
 
-   AlarmSummary total;
+   struct VisibilityAlarmSummary
+   {
+      bool isVisible = false;
+      AlarmSummary summary;
+   };
 
-   std::function<void(const Node *)> countAlarms = [&](const Node *n) {
-      if (!n || !IsNodeVisible(n))
-         return;
+   std::function<VisibilityAlarmSummary(const Node *)> checkVisibilityAndCount =
+       [&](const Node *n) -> VisibilityAlarmSummary {
+      if (!n)
+         return {};
 
-      if (n->HasValue()) {
-         if (n->IsFailed()) {
-            total.failureCount++;
-         } else if (n->IsWarn()) {
-            total.warningCount++;
+      bool anyChildVisible = false;
+      AlarmSummary summary;
+
+      for (const auto &child : n->GetChildren()) {
+         auto result = checkVisibilityAndCount(child.get());
+         if (result.isVisible) {
+            anyChildVisible = true;
+            summary.warningCount += result.summary.warningCount;
+            summary.failureCount += result.summary.failureCount;
          }
       }
 
-      for (const auto &child : n->GetChildren()) {
-         countAlarms(child.get());
+      if (m_showAlarmedOnly) {
+         if (!NodeMatchesAlarmFilter(n) && !anyChildVisible)
+            return {};
       }
+
+      // 2. Check Text Filter
+      bool visible = false;
+      if (m_filterLower.IsEmpty()) {
+         visible = true;
+      } else if (NodeMatchesFilter(n)) {
+         visible = true;
+      } else {
+         // If no direct match, it's visible if it has visible children (path to child)
+         visible = anyChildVisible;
+      }
+
+      if (!visible)
+         return {};
+
+      if (n->HasValue()) {
+         if (n->IsFailed()) {
+            summary.failureCount++;
+         } else if (n->IsWarn()) {
+            summary.warningCount++;
+         }
+      }
+
+      return {true, summary};
    };
 
+   AlarmSummary total;
    for (const auto &child : node->GetChildren()) {
-      countAlarms(child.get());
+      auto result = checkVisibilityAndCount(child.get());
+      if (result.isVisible) {
+         total.warningCount += result.summary.warningCount;
+         total.failureCount += result.summary.failureCount;
+      }
    }
 
    return total;
