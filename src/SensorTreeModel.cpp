@@ -500,6 +500,7 @@ bool SensorTreeModel::IsNodeVisible(const Node *node) const
    for (const auto &child : node->GetChildren()) {
       if (IsNodeVisible(child.get())) {
          childVisible = true;
+         break;
       }
    }
 
