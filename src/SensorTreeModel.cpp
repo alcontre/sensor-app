@@ -417,6 +417,9 @@ unsigned int SensorTreeModel::GetChildren(const wxDataViewItem &parent, wxDataVi
 void SensorTreeModel::RefreshElapsedTimes()
 {
    std::function<void(Node *)> refresh = [&](Node *node) {
+      if (!node)
+         return;
+
       if (IsNodeVisible(node)) {
          ItemChanged(CreateItemFromNode(node));
       }
@@ -453,12 +456,14 @@ Node *SensorTreeModel::FindNodeByPath(const std::vector<std::string> &path) cons
       if (idx == 0) {
          auto it = std::find_if(m_rootNodes.begin(), m_rootNodes.end(),
              [&segment](const std::unique_ptr<Node> &root) {
-                return root->GetName() == segment;
+                return root && root->GetName() == segment;
              });
          if (it == m_rootNodes.end())
             return nullptr;
          current = it->get();
       } else {
+         if (!current)
+            return nullptr;
          current = current->FindChild(segment);
          if (!current)
             return nullptr;
@@ -520,7 +525,7 @@ bool SensorTreeModel::IsNodeVisible(const Node *node) const
 
 bool SensorTreeModel::NodeMatchesFilter(const Node *node) const
 {
-   if (m_filterLower.IsEmpty())
+   if (!node || m_filterLower.IsEmpty())
       return true;
 
    wxString path = wxString::FromUTF8(node->GetFullPath().c_str());
@@ -529,7 +534,7 @@ bool SensorTreeModel::NodeMatchesFilter(const Node *node) const
 
 bool SensorTreeModel::NodeNameMatchesFilter(const Node *node) const
 {
-   if (m_filterLower.IsEmpty())
+   if (!node || m_filterLower.IsEmpty())
       return false;
 
    wxString name = wxString::FromUTF8(node->GetName().c_str());
@@ -538,11 +543,14 @@ bool SensorTreeModel::NodeNameMatchesFilter(const Node *node) const
 
 bool SensorTreeModel::NodeMatchesAlarmFilter(const Node *node) const
 {
-   return node->HasValue() && node->IsAlarmed();
+   return node && node->HasValue() && node->IsAlarmed();
 }
 
 bool SensorTreeModel::HasVisibleChildren(const Node *node) const
 {
+   if (!node)
+      return false;
+
    for (const auto &child : node->GetChildren()) {
       if (IsNodeVisible(child.get()))
          return true;
@@ -552,10 +560,13 @@ bool SensorTreeModel::HasVisibleChildren(const Node *node) const
 
 SensorTreeModel::AlarmSummary SensorTreeModel::CountAlarmedDescendants(const Node *node) const
 {
+   if (!node)
+      return {};
+
    AlarmSummary total;
 
    std::function<void(const Node *)> countAlarms = [&](const Node *n) {
-      if (!IsNodeVisible(n))
+      if (!n || !IsNodeVisible(n))
          return;
 
       if (n->HasValue()) {
