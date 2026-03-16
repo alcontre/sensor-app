@@ -260,9 +260,15 @@ void SensorTreeModel::GetValue(wxVariant &variant, const wxDataViewItem &item, u
             break;
          }
 
+         // Aggregate alarm summaries are only shown for collapsed container nodes.
+         const bool isExpanded = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
+         if (isExpanded || node->IsLeaf()) {
+            variant = wxString("");
+            break;
+         }
+
          const AlarmSummary alarmSummary = CountAlarmedDescendants(node);
-         const bool isExpanded           = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
-         if ((alarmSummary.failureCount > 0 || alarmSummary.warningCount > 0) && !isExpanded) {
+         if (alarmSummary.failureCount > 0 || alarmSummary.warningCount > 0) {
             variant = FormatAlarmSummaryText(alarmSummary);
          } else {
             variant = wxString("");
@@ -334,11 +340,16 @@ bool SensorTreeModel::GetAttr(const wxDataViewItem &item, unsigned int col, wxDa
       return true;
    }
 
-   if (col == COL_VALUE) {
-      const bool isExpanded      = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
+   if (col == COL_VALUE && !node->HasValue()) {
+      // Aggregate alarm summaries are only shown for collapsed container nodes.
+      const bool isExpanded = m_isNodeExpanded ? m_isNodeExpanded(node) : false;
+      if (isExpanded || node->IsLeaf()) {
+         return false;
+      }
+
       const AlarmSummary summary = CountAlarmedDescendants(node);
       const bool hasAlarmedChild = summary.failureCount > 0 || summary.warningCount > 0;
-      if (hasAlarmedChild && !isExpanded && !node->HasValue()) {
+      if (hasAlarmedChild) {
          attr.SetColour(summary.failureCount > 0 ? FailColor() : WarningColor());
          return true;
       }
