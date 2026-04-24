@@ -71,6 +71,12 @@ class SensorTreeModel : public wxDataViewModel
       bool parentWasLeaf;
    };
 
+   struct VisibleSubtreeState
+   {
+      bool isVisible = false;
+      AlarmSummary alarmSummary;
+   };
+
    Node *FindOrCreatePath(const std::vector<std::string> &path, bool &structureChanged, std::vector<CreatedEdge> &createdEdges);
    std::vector<Node *> BuildPath(Node *node) const;
 
@@ -85,6 +91,7 @@ class SensorTreeModel : public wxDataViewModel
    bool NodeMatchesFilter(const Node *node) const;
    bool NodeNameMatchesFilter(const Node *node) const;
    bool NodeMatchesAlarmFilter(const Node *node) const;
+   VisibleSubtreeState EvaluateVisibleSubtree(const Node *node) const;
    bool HasVisibleChildren(const Node *node) const;
    AlarmSummary CountAlarmedDescendants(const Node *node) const;
 

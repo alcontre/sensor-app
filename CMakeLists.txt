@@ -54,6 +54,8 @@ add_executable(SensorTreeMaintenanceTests
     src/SensorDataJsonReader.cpp
     src/SensorDataJsonWriter.cpp
     src/SensorData.cpp
+    src/Node.cpp
+    src/SensorTreeModel.cpp
 )
 
 target_include_directories(SensorTreeMaintenanceTests PRIVATE

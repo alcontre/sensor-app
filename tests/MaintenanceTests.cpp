@@ -2,6 +2,7 @@
 #include "SensorData.h"
 #include "SensorDataJsonReader.h"
 #include "SensorDataJsonWriter.h"
+#include "SensorTreeModel.h"
 
 #include <chrono>
 #include <filesystem>
@@ -122,6 +123,44 @@ void TestReaderAcceptsLegacyFailedField()
    Expect(result.samples.front().alarmState == SensorAlarmState::Failed, "Legacy failed flag should map to SensorAlarmState::Failed");
 }
 
+void TestModelVisibilityAndAlarmSummary()
+{
+   SensorTreeModel model;
+   model.AddDataSample({"rack", "psu", "voltage"}, DataValue(std::int64_t{12}), {}, SensorAlarmState::Failed);
+   model.AddDataSample({"rack", "fan", "speed"}, DataValue(std::int64_t{3000}), {}, SensorAlarmState::Ok);
+
+   Node *rackNode = model.FindNodeByPath({"rack"});
+   Node *psuNode  = model.FindNodeByPath({"rack", "psu"});
+   Node *fanNode  = model.FindNodeByPath({"rack", "fan"});
+
+   Expect(rackNode != nullptr, "Rack node should exist after adding samples");
+   Expect(psuNode != nullptr, "PSU node should exist after adding samples");
+   Expect(fanNode != nullptr, "Fan node should exist after adding samples");
+
+   Expect(model.IsNodeVisible(rackNode), "Rack node should be visible without filters");
+   Expect(model.IsNodeVisible(psuNode), "Alarmed subtree should be visible without filters");
+   Expect(model.IsNodeVisible(fanNode), "Non-alarmed subtree should be visible without filters");
+
+   wxVariant summaryValue;
+   model.GetValue(summaryValue, wxDataViewItem(static_cast<void *>(rackNode)), SensorTreeModel::COL_VALUE);
+   Expect(summaryValue.GetString() == "1 fail", "Collapsed container nodes should report visible descendant alarm summaries");
+
+   model.SetShowAlarmedOnly(true);
+   Expect(model.IsNodeVisible(rackNode), "Rack node should remain visible as the path to an alarmed descendant");
+   Expect(model.IsNodeVisible(psuNode), "Alarmed subtree should remain visible when filtering alarmed nodes");
+   Expect(!model.IsNodeVisible(fanNode), "Non-alarmed subtrees should be hidden when filtering alarmed nodes");
+
+   wxDataViewItemArray visibleChildren;
+   const unsigned int visibleChildCount = model.GetChildren(wxDataViewItem(static_cast<void *>(rackNode)), visibleChildren);
+   Expect(visibleChildCount == 1, "Only the alarmed branch should remain visible under the rack node");
+   Expect(static_cast<Node *>(visibleChildren[0].GetID()) == psuNode, "The remaining visible child should be the alarmed branch");
+
+   model.SetFilter("voltage");
+   Expect(model.IsNodeVisible(rackNode), "Rack node should remain visible as the path to a filtered descendant");
+   Expect(model.IsNodeVisible(psuNode), "Filtered alarmed branch should remain visible");
+   Expect(!model.IsNodeVisible(fanNode), "Non-matching branch should remain hidden under combined filters");
+}
+
 } // namespace
 
 int main()
@@ -132,6 +171,7 @@ int main()
       TestUnsignedRangeCheck();
       TestWriterOmitsFailedFieldAndPreservesWarnState();
       TestReaderAcceptsLegacyFailedField();
+      TestModelVisibilityAndAlarmSummary();
    } catch (const std::exception &error) {
       std::cerr << error.what() << std::endl;
       return 1;

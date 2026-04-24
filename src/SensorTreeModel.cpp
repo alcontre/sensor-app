@@ -509,29 +509,7 @@ std::vector<Node *> SensorTreeModel::BuildPath(Node *node) const
 
 bool SensorTreeModel::IsNodeVisible(const Node *node) const
 {
-   if (!node)
-      return false;
-
-   bool childVisible = false;
-   for (const auto &child : node->GetChildren()) {
-      if (IsNodeVisible(child.get())) {
-         childVisible = true;
-         break;
-      }
-   }
-
-   if (m_showAlarmedOnly) {
-      if (!NodeMatchesAlarmFilter(node) && !childVisible)
-         return false;
-   }
-
-   if (m_filterLower.IsEmpty())
-      return true;
-
-   if (NodeMatchesFilter(node))
-      return true;
-
-   return childVisible;
+   return EvaluateVisibleSubtree(node).isVisible;
 }
 
 bool SensorTreeModel::NodeMatchesFilter(const Node *node) const
@@ -557,13 +535,49 @@ bool SensorTreeModel::NodeMatchesAlarmFilter(const Node *node) const
    return node && node->HasValue() && node->IsAlarmed();
 }
 
+SensorTreeModel::VisibleSubtreeState SensorTreeModel::EvaluateVisibleSubtree(const Node *node) const
+{
+   if (!node)
+      return {};
+
+   bool anyChildVisible = false;
+   AlarmSummary summary;
+
+   for (const auto &child : node->GetChildren()) {
+      const VisibleSubtreeState childState = EvaluateVisibleSubtree(child.get());
+      if (!childState.isVisible)
+         continue;
+
+      anyChildVisible = true;
+      summary.warningCount += childState.alarmSummary.warningCount;
+      summary.failureCount += childState.alarmSummary.failureCount;
+   }
+
+   if (m_showAlarmedOnly && !NodeMatchesAlarmFilter(node) && !anyChildVisible)
+      return {};
+
+   const bool isVisible = m_filterLower.IsEmpty() || NodeMatchesFilter(node) || anyChildVisible;
+   if (!isVisible)
+      return {};
+
+   if (node->HasValue()) {
+      if (node->IsFailed()) {
+         summary.failureCount++;
+      } else if (node->IsWarn()) {
+         summary.warningCount++;
+      }
+   }
+
+   return {true, summary};
+}
+
 bool SensorTreeModel::HasVisibleChildren(const Node *node) const
 {
    if (!node)
       return false;
 
    for (const auto &child : node->GetChildren()) {
-      if (IsNodeVisible(child.get()))
+      if (EvaluateVisibleSubtree(child.get()).isVisible)
          return true;
    }
    return false;
@@ -574,66 +588,14 @@ SensorTreeModel::AlarmSummary SensorTreeModel::CountAlarmedDescendants(const Nod
    if (!node)
       return {};
 
-   struct VisibilityAlarmSummary
-   {
-      bool isVisible = false;
-      AlarmSummary summary;
-   };
-
-   std::function<VisibilityAlarmSummary(const Node *)> checkVisibilityAndCount =
-       [&](const Node *n) -> VisibilityAlarmSummary {
-      if (!n)
-         return {};
-
-      bool anyChildVisible = false;
-      AlarmSummary summary;
-
-      for (const auto &child : n->GetChildren()) {
-         auto result = checkVisibilityAndCount(child.get());
-         if (result.isVisible) {
-            anyChildVisible = true;
-            summary.warningCount += result.summary.warningCount;
-            summary.failureCount += result.summary.failureCount;
-         }
-      }
-
-      if (m_showAlarmedOnly) {
-         if (!NodeMatchesAlarmFilter(n) && !anyChildVisible)
-            return {};
-      }
-
-      // 2. Check Text Filter
-      bool visible = false;
-      if (m_filterLower.IsEmpty()) {
-         visible = true;
-      } else if (NodeMatchesFilter(n)) {
-         visible = true;
-      } else {
-         // If no direct match, it's visible if it has visible children (path to child)
-         visible = anyChildVisible;
-      }
-
-      if (!visible)
-         return {};
-
-      if (n->HasValue()) {
-         if (n->IsFailed()) {
-            summary.failureCount++;
-         } else if (n->IsWarn()) {
-            summary.warningCount++;
-         }
-      }
-
-      return {true, summary};
-   };
-
    AlarmSummary total;
    for (const auto &child : node->GetChildren()) {
-      auto result = checkVisibilityAndCount(child.get());
-      if (result.isVisible) {
-         total.warningCount += result.summary.warningCount;
-         total.failureCount += result.summary.failureCount;
-      }
+      const VisibleSubtreeState childState = EvaluateVisibleSubtree(child.get());
+      if (!childState.isVisible)
+         continue;
+
+      total.warningCount += childState.alarmSummary.warningCount;
+      total.failureCount += childState.alarmSummary.failureCount;
    }
 
    return total;
