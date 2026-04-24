@@ -48,6 +48,21 @@ After building, run the executable:
 ./build/bin/SensorTreeApp
 ```
 
+## Tests
+The repository includes a lightweight non-GUI maintenance test target for serialization,
+path utilities, and tree-model visibility behavior.
+
+Build and run it with:
+```bash
+cmake --build build --target SensorTreeMaintenanceTests
+ctest --test-dir build -R SensorTreeMaintenanceTests --output-on-failure
+```
+
+## Recorded Data
+Generated sensor recordings are written as JSON with a canonical `status` alarm field.
+The loader reads `status` when present and defaults missing alarm state information to `ok`.
+Use `status` with `ok`, `warn`, or `failed` values in recorded files.
+
 ## Project Structure
 ```
 ├── CMakeLists.txt      # CMake configuration

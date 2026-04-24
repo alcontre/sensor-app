@@ -4,6 +4,8 @@
 #include "SensorDataJsonWriter.h"
 #include "SensorTreeModel.h"
 
+#include <nlohmann/json.hpp>
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -14,6 +16,8 @@
 #include <vector>
 
 namespace {
+
+using json = nlohmann::json;
 
 void Expect(bool condition, const std::string &message)
 {
@@ -88,7 +92,7 @@ void TestUnsignedRangeCheck()
    Expect(didThrow, "Out-of-range unsigned values should throw");
 }
 
-void TestWriterOmitsFailedFieldAndPreservesWarnState()
+void TestWriterUsesCanonicalAlarmSchemaAndPreservesWarnState()
 {
    TempFile tempFile(MakeTempPath("_writer.json"));
    {
@@ -97,9 +101,18 @@ void TestWriterOmitsFailedFieldAndPreservesWarnState()
       writer.RecordSample({"rack", "fan", "speed"}, DataValue(std::int64_t{4200}), {}, SensorAlarmState::Warn);
    }
 
-   const std::string contents = ReadAll(tempFile.path);
-   Expect(contents.find("\"status\": \"warn\"") != std::string::npos, "Writer should emit the status field");
-   Expect(contents.find("\"failed\":") == std::string::npos, "Writer should no longer emit the failed field");
+   const json document = json::parse(ReadAll(tempFile.path));
+   Expect(document.contains("data") && document["data"].is_array(), "Writer output should contain a data array");
+   Expect(document["data"].size() == 1, "Writer output should contain one sample entry");
+
+   const json &entry = document["data"].front();
+   Expect(entry.contains("elapsed_seconds"), "Writer output should include elapsed_seconds");
+   Expect(entry.contains("local_time"), "Writer output should include local_time");
+   Expect(entry.contains("path"), "Writer output should include path");
+   Expect(entry.contains("value"), "Writer output should include value");
+   Expect(entry.contains("status"), "Writer output should include status");
+   Expect(entry.size() == 5, "Writer output should contain only the canonical alarm schema fields when no thresholds are present");
+   Expect(entry.at("status") == "warn", "Writer should serialize warn status correctly");
 
    SensorDataJsonReader::LoadResult result;
    std::string errorMessage;
@@ -108,19 +121,37 @@ void TestWriterOmitsFailedFieldAndPreservesWarnState()
    Expect(result.samples.front().alarmState == SensorAlarmState::Warn, "Warn state should survive writer/reader round-trip");
 }
 
-void TestReaderAcceptsLegacyFailedField()
+void TestReaderDefaultsMissingStatusToOk()
 {
-   TempFile tempFile(MakeTempPath("_legacy.json"));
+   TempFile tempFile(MakeTempPath("_missing_status.json"));
    std::ofstream output(tempFile.path);
-   Expect(output.is_open(), "Legacy test file should open for writing");
-   output << R"({"data":[{"path":["rack","psu"],"value":1,"failed":true}]})";
+   Expect(output.is_open(), "Missing status test file should open for writing");
+   output << R"({"data":[{"path":["rack","psu"],"value":1}]})";
    output.close();
 
    SensorDataJsonReader::LoadResult result;
    std::string errorMessage;
-   Expect(SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should accept legacy failed-only files");
-   Expect(result.samples.size() == 1, "Legacy file should yield one sample");
-   Expect(result.samples.front().alarmState == SensorAlarmState::Failed, "Legacy failed flag should map to SensorAlarmState::Failed");
+   Expect(SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should accept samples that omit status");
+   Expect(result.samples.size() == 1, "Missing status file should yield one sample");
+   Expect(result.samples.front().alarmState == SensorAlarmState::Ok, "Samples without status should default to SensorAlarmState::Ok");
+}
+
+void TestReaderRejectsInvalidStatusValue()
+{
+   TempFile tempFile(MakeTempPath("_invalid_status.json"));
+   std::ofstream output(tempFile.path);
+   Expect(output.is_open(), "Invalid status test file should open for writing");
+   output << R"({"data":[{"path":["rack","psu"],"value":1,"status":"invalid"}]})";
+   output.close();
+
+   SensorDataJsonReader::LoadResult result;
+   std::string errorMessage;
+   Expect(!SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should reject invalid status values");
+   Expect(errorMessage == "Recording did not contain any valid samples.", "Invalid status files should be rejected at the sample level");
+   Expect(result.samples.empty(), "Invalid status files should not produce parsed samples");
+   Expect(result.warnings.size() == 1, "Invalid status files should produce one warning");
+   Expect(result.warnings.front().find("field 'status' must be 'ok', 'warn', or 'failed'") != std::string::npos,
+      "Invalid status files should report the accepted status values");
 }
 
 void TestModelVisibilityAndAlarmSummary()
@@ -169,8 +200,9 @@ int main()
       TestPathRoundTrip();
       TestAlarmStateStringMapping();
       TestUnsignedRangeCheck();
-      TestWriterOmitsFailedFieldAndPreservesWarnState();
-      TestReaderAcceptsLegacyFailedField();
+      TestWriterUsesCanonicalAlarmSchemaAndPreservesWarnState();
+      TestReaderDefaultsMissingStatusToOk();
+      TestReaderRejectsInvalidStatusValue();
       TestModelVisibilityAndAlarmSummary();
    } catch (const std::exception &error) {
       std::cerr << error.what() << std::endl;

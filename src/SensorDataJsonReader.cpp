@@ -130,17 +130,6 @@ bool ParseAlarmState(const json &entry, size_t entryIndex, SensorAlarmState &ala
       return false;
    }
 
-   const auto failedIt = entry.find("failed");
-   if (failedIt != entry.end()) {
-      if (!failedIt->is_boolean()) {
-         errorMessage = DescribeEntry(entryIndex) + ": field 'failed' is not a boolean";
-         return false;
-      }
-
-      alarmState = failedIt->get<bool>() ? SensorAlarmState::Failed : SensorAlarmState::Ok;
-      return true;
-   }
-
    alarmState = SensorAlarmState::Ok;
    return true;
 }
