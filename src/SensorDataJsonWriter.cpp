@@ -98,7 +98,10 @@ void SensorDataJsonWriter::RecordSample(const std::vector<std::string> &path, co
    if (thresholds.upperCritical) {
       extraFields.emplace_back("    \"ucr\": " + FormatValue(*thresholds.upperCritical));
    }
-   extraFields.emplace_back(std::string("    \"status\": \"") + ToString(alarmState) + "\"");
+   // Only include the status field if it's not "ok" to reduce output size for common case
+   if (alarmState != SensorAlarmState::Ok) {
+      extraFields.emplace_back(std::string("    \"status\": \"") + ToString(alarmState) + "\"");
+   }
 
    if (!extraFields.empty()) {
       entry << ",\n";

@@ -121,6 +121,34 @@ void TestWriterUsesCanonicalAlarmSchemaAndPreservesWarnState()
    Expect(result.samples.front().alarmState == SensorAlarmState::Warn, "Warn state should survive writer/reader round-trip");
 }
 
+void TestWriterOmitsStatusForOkState()
+{
+   TempFile tempFile(MakeTempPath("_writer_ok.json"));
+   {
+      SensorDataJsonWriter writer(tempFile.path.string());
+      Expect(writer.IsOpen(), "Writer should open the output file");
+      writer.RecordSample({"rack", "fan", "speed"}, DataValue(std::int64_t{4200}), {}, SensorAlarmState::Ok);
+   }
+
+   const json document = json::parse(ReadAll(tempFile.path));
+   Expect(document.contains("data") && document["data"].is_array(), "Writer output should contain a data array");
+   Expect(document["data"].size() == 1, "Writer output should contain one sample entry");
+
+   const json &entry = document["data"].front();
+   Expect(entry.contains("elapsed_seconds"), "Writer output should include elapsed_seconds");
+   Expect(entry.contains("local_time"), "Writer output should include local_time");
+   Expect(entry.contains("path"), "Writer output should include path");
+   Expect(entry.contains("value"), "Writer output should include value");
+   Expect(!entry.contains("status"), "Writer should omit status for ok samples");
+   Expect(entry.size() == 4, "Writer output should omit status entirely for ok samples when no thresholds are present");
+
+   SensorDataJsonReader::LoadResult result;
+   std::string errorMessage;
+   Expect(SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should load files written without a status field for ok samples");
+   Expect(result.samples.size() == 1, "Writer round-trip should yield one sample");
+   Expect(result.samples.front().alarmState == SensorAlarmState::Ok, "Missing status from the writer should round-trip as SensorAlarmState::Ok");
+}
+
 void TestReaderDefaultsMissingStatusToOk()
 {
    TempFile tempFile(MakeTempPath("_missing_status.json"));
@@ -151,7 +179,7 @@ void TestReaderRejectsInvalidStatusValue()
    Expect(result.samples.empty(), "Invalid status files should not produce parsed samples");
    Expect(result.warnings.size() == 1, "Invalid status files should produce one warning");
    Expect(result.warnings.front().find("field 'status' must be 'ok', 'warn', or 'failed'") != std::string::npos,
-      "Invalid status files should report the accepted status values");
+       "Invalid status files should report the accepted status values");
 }
 
 void TestModelVisibilityAndAlarmSummary()
@@ -201,6 +229,7 @@ int main()
       TestAlarmStateStringMapping();
       TestUnsignedRangeCheck();
       TestWriterUsesCanonicalAlarmSchemaAndPreservesWarnState();
+      TestWriterOmitsStatusForOkState();
       TestReaderDefaultsMissingStatusToOk();
       TestReaderRejectsInvalidStatusValue();
       TestModelVisibilityAndAlarmSummary();
