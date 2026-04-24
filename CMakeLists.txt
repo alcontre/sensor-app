@@ -13,10 +13,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(wxWidgets REQUIRED COMPONENTS core base net)
 include(${wxWidgets_USE_FILE})
 
+add_subdirectory(external/nlohmann_json)
+
 # Add executable
 add_executable(${PROJECT_NAME}
     src/MainFrame.cpp
     src/App.cpp
+    src/SensorDataJsonReader.cpp
     src/SensorDataJsonWriter.cpp
     src/SensorData.cpp
     src/SensorDataEvent.cpp
@@ -34,7 +37,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}
+    ${wxWidgets_LIBRARIES}
+    nlohmann_json::nlohmann_json
+)
 
 # Set output directory
 set_target_properties(${PROJECT_NAME} PROPERTIES

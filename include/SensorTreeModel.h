@@ -17,6 +17,8 @@ class SensorTreeModel : public wxDataViewModel
    void AddDataSample(const std::vector<std::string> &path, const DataValue &value,
        SensorThresholds thresholds = {},
        SensorAlarmState alarmState = SensorAlarmState::Ok);
+   void SetLiveDataMode(bool isLiveData);
+   bool IsLiveDataMode() const { return m_isLiveDataMode; }
 
    void SetFilter(const wxString &filterText);
    const wxString &GetFilter() const { return m_filter; }
@@ -76,6 +78,7 @@ class SensorTreeModel : public wxDataViewModel
    wxString m_filter;
    wxString m_filterLower;
    bool m_showAlarmedOnly = false;
+   bool m_isLiveDataMode  = true;
 
    Node *GetNodeFromItem(const wxDataViewItem &item) const;
    wxDataViewItem CreateItemFromNode(Node *node) const;

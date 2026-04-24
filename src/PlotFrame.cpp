@@ -139,11 +139,12 @@ class PlotFrame::PlotCanvas : public wxPanel
       }
 
       const auto windowDuration = m_owner->GetTimeRangeDuration();
+      const bool isLiveData     = m_owner->GetModel()->IsLiveDataMode();
       const auto now            = std::chrono::steady_clock::now();
 
       // Define the time window that maps to the plot rectangle.
       // For fixed windows we end at the newest known sample (or now, whichever is later).
-      const auto viewEnd   = std::max(now, latestOverall);
+      const auto viewEnd   = isLiveData ? std::max(now, latestOverall) : latestOverall;
       const bool hasWindow = static_cast<bool>(windowDuration);
 
       auto viewStart = std::chrono::steady_clock::time_point::min();
@@ -347,7 +348,7 @@ class PlotFrame::PlotCanvas : public wxPanel
       // Compute the plot start time based on the window duration (or the earliest sample
       // when no window is set).
       auto plotStart = windowDuration ? viewStart : earliest;
-      auto plotEnd   = windowDuration ? viewEnd : std::max(now, latest);
+      auto plotEnd   = windowDuration ? viewEnd : (isLiveData ? std::max(now, latest) : latest);
       if (plotStart > plotEnd)
          plotStart = plotEnd - std::chrono::milliseconds(1);
 

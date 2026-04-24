@@ -60,6 +60,11 @@ SensorTreeModel::~SensorTreeModel()
 {
 }
 
+void SensorTreeModel::SetLiveDataMode(bool isLiveData)
+{
+   m_isLiveDataMode = isLiveData;
+}
+
 void SensorTreeModel::SetShowAlarmedOnly(bool showAlarmedOnly)
 {
    if (m_showAlarmedOnly == showAlarmedOnly)

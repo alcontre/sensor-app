@@ -2,6 +2,7 @@
 
 #include "SensorDataEvent.h"
 #include "SensorDataGenerator.h"
+#include "SensorDataJsonReader.h"
 #include "SensorDataTestGenerator.h"
 #include "SensorTreeModel.h"
 
@@ -16,6 +17,7 @@
 #include <wx/fileconf.h>
 #include <wx/filedlg.h>
 #include <wx/filename.h>
+#include <wx/log.h>
 #include <wx/textctrl.h>
 #include <wx/textdlg.h>
 #include <wx/window.h>
@@ -91,6 +93,8 @@ void MainFrame::CreateMenuBar()
        "Write the open plots and their assigned sensors to a config file");
    menuFile->Append(ID_LoadPlotConfig, "&Load Plot Configuration...",
        "Open plots based on a previously saved configuration");
+   menuFile->Append(ID_OpenSensorData, "&Open Sensor Data...",
+       "Load a saved sensor recording into the tree view");
    menuFile->AppendSeparator();
    menuFile->Append(wxID_EXIT);
 
@@ -223,6 +227,7 @@ void MainFrame::BindEvents()
    Bind(wxEVT_MENU, &MainFrame::OnRotateLog, this, ID_RotateLog);
    Bind(wxEVT_MENU, &MainFrame::OnSavePlotConfig, this, ID_SavePlotConfig);
    Bind(wxEVT_MENU, &MainFrame::OnLoadPlotConfig, this, ID_LoadPlotConfig);
+   Bind(wxEVT_MENU, &MainFrame::OnOpenSensorData, this, ID_OpenSensorData);
    Bind(wxEVT_MENU, &MainFrame::OnClearTree, this, ID_ClearTree);
    Bind(wxEVT_MENU, &MainFrame::OnFocusFilter, this, ID_FocusFilter);
    // Toggle expand/collapse on double-click (item activated)
@@ -258,6 +263,7 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
    if (!sampleEvent)
       return;
 
+   m_treeModel->SetLiveDataMode(true);
    m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
        sampleEvent->GetThresholds(), sampleEvent->GetAlarmState());
    if (m_dataRecorder)
@@ -820,6 +826,59 @@ void MainFrame::OnLoadPlotConfig(wxCommandEvent &WXUNUSED(event))
       for (const wxString &line : warnings)
          message += "- " + line + "\n";
       wxMessageBox(message, "Load Plot Configuration", wxOK | wxICON_INFORMATION, this);
+   }
+}
+
+void MainFrame::OnOpenSensorData(wxCommandEvent &WXUNUSED(event))
+{
+   wxFileDialog dialog(this, "Open Sensor Data", wxEmptyString, wxEmptyString,
+       "Sensor recordings (*.json)|*.json|All files (*.*)|*.*", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+   if (dialog.ShowModal() != wxID_OK)
+      return;
+
+   SensorDataJsonReader::LoadResult loadResult;
+   std::string errorMessage;
+   if (!SensorDataJsonReader::LoadFromFile(dialog.GetPath().ToStdString(), loadResult, errorMessage)) {
+      wxMessageBox(wxString::FromUTF8(errorMessage.c_str()), "Open Sensor Data", wxOK | wxICON_ERROR, this);
+      return;
+   }
+
+   StopDataTestGeneration();
+   m_isNetworkConnected = false;
+   UpdateNetworkIndicator(*wxYELLOW, "Viewing loaded recording (offline)");
+   CloseLogFile("Switched to loaded recording.");
+
+   if (m_plotManager)
+      m_plotManager->CloseAllPlots();
+
+   m_treeCtrl->Freeze();
+   m_treeCtrl->UnselectAll();
+   m_treeModel->SetLiveDataMode(false);
+   m_treeModel->Clear();
+   m_expandedNodes.clear();
+   for (const RecordedSensorSample &sample : loadResult.samples) {
+      m_treeModel->AddDataSample(sample.path, sample.value, sample.thresholds, sample.alarmState);
+   }
+   m_treeCtrl->Thaw();
+
+   m_messagesReceived = 0;
+   SetStatusText(wxString::Format("Messages received: %zu", static_cast<unsigned long long>(m_messagesReceived)), STATUS_FIELD_MESSAGE_COUNT);
+
+   wxLogMessage("Loaded %zu sample(s) from '%s'.", loadResult.samples.size(), dialog.GetPath());
+
+   if (!loadResult.warnings.empty()) {
+      wxString message = wxString::Format("Loaded %zu sample(s); skipped %zu invalid entr%s.\n",
+          loadResult.samples.size(), loadResult.warnings.size(), loadResult.warnings.size() == 1 ? "y" : "ies");
+
+      const size_t warningLimit = std::min<size_t>(loadResult.warnings.size(), 10);
+      for (size_t warningIndex = 0; warningIndex < warningLimit; ++warningIndex) {
+         message += "- " + wxString::FromUTF8(loadResult.warnings[warningIndex].c_str()) + "\n";
+      }
+      if (loadResult.warnings.size() > warningLimit) {
+         message += wxString::Format("... and %zu more warning(s).", loadResult.warnings.size() - warningLimit);
+      }
+
+      wxMessageBox(message, "Open Sensor Data", wxOK | wxICON_WARNING, this);
    }
 }
 

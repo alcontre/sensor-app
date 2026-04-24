@@ -20,6 +20,9 @@ A C++ wxWidgets application for displaying hierarchical sensor data.
 # Install wxWidgets using Homebrew
 brew install wxwidgets
 
+# Fetch vendored dependencies
+git submodule update --init --recursive
+
 # Build the project
 ./build.sh
 ```
@@ -29,9 +32,15 @@ brew install wxwidgets
 # Install dependencies
 sudo apt-get install libwxgtk3.0-gtk3-dev cmake build-essential
 
+# Fetch vendored dependencies
+git submodule update --init --recursive
+
 # Build the project
 ./build.sh
 ```
+
+If you cloned the repository without submodules, run `git submodule update --init --recursive`
+before building.
 
 ## Running
 After building, run the executable:
