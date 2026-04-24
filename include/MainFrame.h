@@ -121,7 +121,7 @@ class MainFrame : public wxFrame
    void CloseLogFile(const wxString &reason = wxString());
    void SetupAccelerators();
 
-   std::unordered_set<const Node *> m_expandedNodes;
+   std::unordered_set<std::string> m_expandedNodes;
    std::unique_ptr<PlotManager> m_plotManager;
    std::unordered_map<int, wxString> m_plotMenuIdToName;
 };

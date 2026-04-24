@@ -1,5 +1,7 @@
 #include "MainFrame.h"
 
+#include "PathUtils.h"
+
 #include "SensorDataEvent.h"
 #include "SensorDataGenerator.h"
 #include "SensorDataJsonReader.h"
@@ -31,6 +33,14 @@ constexpr int STATUS_FIELD_NET_STATUS    = 0;
 constexpr int STATUS_FIELD_LOG_INFO      = 1;
 constexpr int STATUS_FIELD_MESSAGE_COUNT = 2;
 constexpr int STATUS_FIELD_COUNT         = 3;
+
+std::string GetNodePathKey(const Node *node)
+{
+   if (!node)
+      return {};
+
+   return PathUtils::JoinPath(node->GetPath());
+}
 } // namespace
 
 MainFrame::MainFrame() :
@@ -321,7 +331,7 @@ void MainFrame::OnItemExpanded(wxDataViewEvent &event)
 {
    Node *node = static_cast<Node *>(event.GetItem().GetID());
    if (node)
-      m_expandedNodes.insert(node);
+      m_expandedNodes.insert(GetNodePathKey(node));
 
    // Force the view to re-query the model so the failure summary reflects the new expansion state.
    m_treeCtrl->Refresh();
@@ -340,23 +350,35 @@ void MainFrame::OnItemCollapsed(wxDataViewEvent &event)
 
 void MainFrame::RestoreExpansionState()
 {
-   std::vector<Node *> nodes;
+   struct ExpansionTarget
+   {
+      Node *node;
+      size_t depth;
+   };
+
+   std::vector<ExpansionTarget> nodes;
    nodes.reserve(m_expandedNodes.size());
-   for (const Node *nodePtr : m_expandedNodes) {
-      if (!nodePtr)
+   for (const std::string &pathKey : m_expandedNodes) {
+      const std::vector<std::string> path = PathUtils::SplitPath(pathKey);
+      if (path.empty())
          continue;
-      if (!m_treeModel->IsNodeVisible(nodePtr))
+
+      Node *node = m_treeModel->FindNodeByPath(path);
+      if (!node)
          continue;
-      nodes.push_back(const_cast<Node *>(nodePtr));
+      if (!m_treeModel->IsNodeVisible(node))
+         continue;
+
+      nodes.push_back({node, path.size()});
    }
 
    std::sort(nodes.begin(), nodes.end(),
-       [](Node *lhs, Node *rhs) {
-          return lhs->GetDepth() < rhs->GetDepth();
+       [](const ExpansionTarget &lhs, const ExpansionTarget &rhs) {
+          return lhs.depth < rhs.depth;
        });
 
-   for (Node *node : nodes) {
-      wxDataViewItem item(static_cast<void *>(node));
+   for (const ExpansionTarget &target : nodes) {
+      wxDataViewItem item(static_cast<void *>(target.node));
       m_treeCtrl->Expand(item);
    }
 }
@@ -374,7 +396,7 @@ void MainFrame::PruneExpansionSubtree(Node *node, bool includeRoot)
       stack.pop_back();
 
       if (current != node || includeRoot) {
-         m_expandedNodes.erase(current);
+         m_expandedNodes.erase(GetNodePathKey(current));
       }
 
       for (const auto &child : current->GetChildren()) {
@@ -396,7 +418,7 @@ void MainFrame::OnExpandAll(wxCommandEvent &event)
       for (const wxDataViewItem &child : children) {
          Node *node = static_cast<Node *>(child.GetID());
          if (node)
-            m_expandedNodes.insert(node);
+            m_expandedNodes.insert(GetNodePathKey(node));
          recordExpanded(child);
       }
    };

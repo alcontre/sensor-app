@@ -15,6 +15,8 @@ include(${wxWidgets_USE_FILE})
 
 add_subdirectory(external/nlohmann_json)
 
+enable_testing()
+
 # Add executable
 add_executable(${PROJECT_NAME}
     src/MainFrame.cpp
@@ -46,3 +48,25 @@ target_link_libraries(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
+
+add_executable(SensorTreeMaintenanceTests
+    tests/MaintenanceTests.cpp
+    src/SensorDataJsonReader.cpp
+    src/SensorDataJsonWriter.cpp
+    src/SensorData.cpp
+)
+
+target_include_directories(SensorTreeMaintenanceTests PRIVATE
+    include
+)
+
+target_link_libraries(SensorTreeMaintenanceTests
+    ${wxWidgets_LIBRARIES}
+    nlohmann_json::nlohmann_json
+)
+
+set_target_properties(SensorTreeMaintenanceTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+add_test(NAME SensorTreeMaintenanceTests COMMAND SensorTreeMaintenanceTests)

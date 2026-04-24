@@ -1,52 +1,16 @@
 #include "PlotManager.h"
 
 #include "Node.h"
+#include "PathUtils.h"
 #include "PlotFrame.h"
 #include "SensorTreeModel.h"
 
 #include <wx/window.h>
 
 #include <algorithm>
-#include <sstream>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-namespace {
-std::string ToUtf8(const wxString &value)
-{
-   const wxScopedCharBuffer buffer = value.ToUTF8();
-   if (!buffer)
-      return "";
-   return std::string(buffer.data(), buffer.length());
-}
-
-std::vector<std::string> SplitPath(const std::string &path)
-{
-   std::vector<std::string> segments;
-   size_t start = 0;
-   while (start < path.size()) {
-      size_t end = path.find('/', start);
-      if (end == std::string::npos)
-         end = path.size();
-      if (end > start)
-         segments.emplace_back(path.substr(start, end - start));
-      start = end + 1;
-   }
-   return segments;
-}
-
-std::string JoinPath(const std::vector<std::string> &path)
-{
-   std::ostringstream oss;
-   for (size_t i = 0; i < path.size(); ++i) {
-      if (i > 0)
-         oss << '/';
-      oss << path[i];
-   }
-   return oss.str();
-}
-} // namespace
 
 PlotManager::PlotManager(wxWindow *parent, SensorTreeModel *model) :
     m_parent(parent),
@@ -157,11 +121,11 @@ size_t PlotManager::RestorePlotConfigurations(const std::vector<PlotConfiguratio
          if (rawPath.empty())
             continue;
 
-         const std::vector<std::string> segments = SplitPath(rawPath);
+         const std::vector<std::string> segments = PathUtils::SplitPath(rawPath);
          if (segments.empty())
             continue;
 
-         const std::string normalizedPath = JoinPath(segments);
+         const std::string normalizedPath = PathUtils::JoinPath(segments);
          if (!seenPaths.insert(normalizedPath).second)
             continue;
 
@@ -224,7 +188,7 @@ std::string PlotManager::NormalizeName(const wxString &name)
    wxString trimmed = name;
    trimmed.Trim(true);
    trimmed.Trim(false);
-   return ToUtf8(trimmed.Lower());
+   return PathUtils::ToUtf8(trimmed.Lower());
 }
 
 void PlotManager::HandlePlotClosed(const std::string &name)

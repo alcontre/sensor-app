@@ -78,19 +78,19 @@ std::vector<SampleDefinition> GenerateTestSensors()
                def.type                        = SampleDefinition::ValueType::Double;
                def.minDouble                   = 0.0;
                def.maxDouble                   = 100.0;
-               def.thresholds.lowerCritical    = DataValue::FromDouble(5.0);
-               def.thresholds.lowerNonCritical = DataValue::FromDouble(10.0);
-               def.thresholds.upperNonCritical = DataValue::FromDouble(90.0);
-               def.thresholds.upperCritical    = DataValue::FromDouble(95.0);
+               def.thresholds.lowerCritical    = DataValue(5.0);
+               def.thresholds.lowerNonCritical = DataValue(10.0);
+               def.thresholds.upperNonCritical = DataValue(90.0);
+               def.thresholds.upperCritical    = DataValue(95.0);
                def.failureProbability          = 0.05;
             } else if (type == 1) { // Integer
                def.type                        = SampleDefinition::ValueType::Integer;
                def.minInteger                  = 0;
                def.maxInteger                  = 1000;
-               def.thresholds.lowerCritical    = DataValue::FromInt64(50);
-               def.thresholds.lowerNonCritical = DataValue::FromInt64(100);
-               def.thresholds.upperNonCritical = DataValue::FromInt64(900);
-               def.thresholds.upperCritical    = DataValue::FromInt64(950);
+               def.thresholds.lowerCritical    = DataValue(std::int64_t{50});
+               def.thresholds.lowerNonCritical = DataValue(std::int64_t{100});
+               def.thresholds.upperNonCritical = DataValue(std::int64_t{900});
+               def.thresholds.upperCritical    = DataValue(std::int64_t{950});
                def.failureProbability          = 0.05;
             } else if (type == 2) { // String
                def.type                = SampleDefinition::ValueType::String;
@@ -154,7 +154,7 @@ void SensorDataTestGenerator::QueueRandomDataSample()
    std::uniform_int_distribution<size_t> defDist(0, definitions.size() - 1);
    const auto &def = definitions[defDist(m_rng)];
 
-   DataValue value             = DataValue::FromInt64(0);
+   DataValue value             = DataValue(std::int64_t{0});
    SensorAlarmState alarmState = SensorAlarmState::Ok;
    SensorThresholds thresholds = def.thresholds;
 
@@ -184,7 +184,7 @@ void SensorDataTestGenerator::QueueRandomDataSample()
             }
          }
 
-         value      = DataValue::FromDouble(generated);
+         value      = DataValue(generated);
          alarmState = ClassifyNumericAlarm(generated, thresholds);
          break;
       }
@@ -213,7 +213,7 @@ void SensorDataTestGenerator::QueueRandomDataSample()
             }
          }
 
-         value      = DataValue::FromInt64(generated);
+         value      = DataValue(generated);
          alarmState = ClassifyNumericAlarm(static_cast<double>(generated), thresholds);
          break;
       }
@@ -231,7 +231,7 @@ void SensorDataTestGenerator::QueueRandomDataSample()
             chosen = def.stringOptions[strDist(m_rng)];
          }
 
-         value      = DataValue::FromString(chosen);
+         value      = DataValue(chosen);
          alarmState = std::find(def.failureStringValues.begin(), def.failureStringValues.end(), chosen) != def.failureStringValues.end()
                           ? SensorAlarmState::Failed
                           : SensorAlarmState::Ok;
@@ -247,7 +247,7 @@ void SensorDataTestGenerator::QueueRandomDataSample()
             generated = def.failureBooleanValues[failureDist(m_rng)];
          }
 
-         value      = DataValue::FromBool(generated);
+         value      = DataValue(generated);
          alarmState = std::any_of(def.failureBooleanValues.begin(), def.failureBooleanValues.end(),
                           [generated](bool failureVal) { return failureVal == generated; })
                           ? SensorAlarmState::Failed

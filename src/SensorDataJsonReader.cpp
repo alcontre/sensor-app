@@ -122,16 +122,7 @@ bool ParseAlarmState(const json &entry, size_t entryIndex, SensorAlarmState &ala
       }
 
       const std::string status = statusIt->get<std::string>();
-      if (status == "ok") {
-         alarmState = SensorAlarmState::Ok;
-         return true;
-      }
-      if (status == "warn") {
-         alarmState = SensorAlarmState::Warn;
-         return true;
-      }
-      if (status == "failed") {
-         alarmState = SensorAlarmState::Failed;
+      if (TryParseSensorAlarmState(status, alarmState)) {
          return true;
       }
 

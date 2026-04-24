@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -36,39 +37,27 @@ class DataValue
    bool IsBoolean() const { return m_type == BOOLEAN; }
    bool IsNumeric() const { return m_type == INTEGER || m_type == DOUBLE; }
 
-   // Static factory helpers
-   static DataValue FromInt64(std::int64_t value);
-   static DataValue FromUInt64(std::uint64_t value);
-   static DataValue FromInt32(std::int32_t value);
-   static DataValue FromUInt32(std::uint32_t value);
-   static DataValue FromBool(bool value);
-   static DataValue FromDouble(double value);
-   static DataValue FromString(const std::string &value);
-   static DataValue FromString(const char *value);
-
    // Templated helper: deduce numeric types (integers and floating point)
    template <typename T,
        typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, bool>::value, int>::type = 0>
    static DataValue From(T value)
    {
-      // dispatch unsigned vs signed
-      return std::is_unsigned<T>::value ? FromUInt64(static_cast<std::uint64_t>(value))
-                                        : FromInt64(static_cast<std::int64_t>(value));
+      return DataValue(value);
    }
 
    template <typename T,
        typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
    static DataValue From(T value)
    {
-      return FromDouble(static_cast<double>(value));
+      return DataValue(static_cast<double>(value));
    }
 
    // Overload for bool specifically
-   static DataValue From(bool value) { return FromBool(value); }
+   static DataValue From(bool value) { return DataValue(value); }
 
    // Overloads for strings
-   static DataValue From(const std::string &value) { return FromString(value); }
-   static DataValue From(const char *value) { return FromString(value); }
+   static DataValue From(const std::string &value) { return DataValue(value); }
+   static DataValue From(const char *value) { return DataValue(value); }
 
    // Value access
    std::int64_t GetInteger() const;
@@ -102,6 +91,26 @@ inline const char *ToString(SensorAlarmState state)
    }
 
    return "ok";
+}
+
+inline bool TryParseSensorAlarmState(std::string_view text, SensorAlarmState &state)
+{
+   if (text == "ok") {
+      state = SensorAlarmState::Ok;
+      return true;
+   }
+
+   if (text == "warn") {
+      state = SensorAlarmState::Warn;
+      return true;
+   }
+
+   if (text == "failed") {
+      state = SensorAlarmState::Failed;
+      return true;
+   }
+
+   return false;
 }
 
 struct SensorThresholds

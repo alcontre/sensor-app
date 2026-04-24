@@ -1,5 +1,6 @@
 #include "SensorData.h"
 
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -14,6 +15,8 @@ DataValue::DataValue(std::uint64_t value) :
     m_type(INTEGER),
     m_value(static_cast<std::int64_t>(value))
 {
+   if (value > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+      throw std::out_of_range("DataValue integer exceeds supported range");
 }
 
 DataValue::DataValue(std::int32_t value) :
@@ -22,7 +25,7 @@ DataValue::DataValue(std::int32_t value) :
 }
 
 DataValue::DataValue(std::uint32_t value) :
-    DataValue(static_cast<std::int64_t>(value))
+    DataValue(static_cast<std::uint64_t>(value))
 {
 }
 
@@ -48,47 +51,6 @@ DataValue::DataValue(const char *value) :
     m_type(STRING),
     m_value(std::string(value))
 {
-}
-
-// Static factories
-DataValue DataValue::FromInt64(std::int64_t value)
-{
-   return DataValue(value);
-}
-
-DataValue DataValue::FromUInt64(std::uint64_t value)
-{
-   return DataValue(value);
-}
-
-DataValue DataValue::FromInt32(std::int32_t value)
-{
-   return DataValue(value);
-}
-
-DataValue DataValue::FromUInt32(std::uint32_t value)
-{
-   return DataValue(value);
-}
-
-DataValue DataValue::FromDouble(double value)
-{
-   return DataValue(value);
-}
-
-DataValue DataValue::FromString(const std::string &value)
-{
-   return DataValue(value);
-}
-
-DataValue DataValue::FromString(const char *value)
-{
-   return DataValue(value);
-}
-
-DataValue DataValue::FromBool(bool value)
-{
-   return DataValue(value);
 }
 
 std::int64_t DataValue::GetInteger() const
