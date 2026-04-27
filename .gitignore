@@ -3,6 +3,7 @@ build/
 run/
 .vscode/
 .cache/
+.DS_Store
 
 *.json
 

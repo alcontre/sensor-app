@@ -3,6 +3,7 @@
 
 #include <wx/event.h>
 
+#include <chrono>
 #include <vector>
 
 // Custom event carrying sensor data samples queued into the UI thread
@@ -13,8 +14,9 @@ class SensorDataEvent : public wxCommandEvent
  public:
    SensorDataEvent();
    SensorDataEvent(const std::vector<std::string> &path, const DataValue &value,
-       SensorThresholds thresholds = {},
-       SensorAlarmState alarmState = SensorAlarmState::Ok);
+       SensorThresholds thresholds                     = {},
+       SensorAlarmState alarmState                     = SensorAlarmState::Ok,
+       std::chrono::steady_clock::time_point timestamp = std::chrono::steady_clock::now());
    SensorDataEvent(const SensorDataEvent &other);
 
    // Required for wxWidgets event cloning
@@ -24,6 +26,7 @@ class SensorDataEvent : public wxCommandEvent
    const DataValue &GetValue() const { return m_value; }
    const SensorThresholds &GetThresholds() const { return m_thresholds; }
    SensorAlarmState GetAlarmState() const { return m_alarmState; }
+   std::chrono::steady_clock::time_point GetTimestamp() const { return m_timestamp; }
    bool IsWarn() const { return m_alarmState == SensorAlarmState::Warn; }
    bool IsFailed() const { return m_alarmState == SensorAlarmState::Failed; }
 
@@ -32,4 +35,5 @@ class SensorDataEvent : public wxCommandEvent
    DataValue m_value;
    SensorThresholds m_thresholds;
    SensorAlarmState m_alarmState;
+   std::chrono::steady_clock::time_point m_timestamp;
 };

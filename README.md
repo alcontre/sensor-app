@@ -59,9 +59,12 @@ ctest --test-dir build -R SensorTreeMaintenanceTests --output-on-failure
 ```
 
 ## Recorded Data
-Generated sensor recordings are written as JSON with a canonical `status` alarm field.
-The loader reads `status` when present and defaults missing alarm state information to `ok`.
-Use `status` with `ok`, `warn`, or `failed` values in recorded files.
+Generated sensor recordings use a canonical JSON schema with required
+`elapsed_seconds`, `local_time`, `path`, and `value` fields.
+The `status` field is optional: recordings omit it for the common `ok` case and
+emit it for `warn` or `failed` samples.
+The loader expects files written by this version of the app and defaults missing
+`status` to `ok`.
 
 ## Project Structure
 ```

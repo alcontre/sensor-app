@@ -15,9 +15,9 @@ class SensorTreeModel : public wxDataViewModel
    ~SensorTreeModel() override;
 
    void AddDataSample(const std::vector<std::string> &path, const DataValue &value,
-       SensorThresholds thresholds                                    = {},
-       SensorAlarmState alarmState                                    = SensorAlarmState::Ok,
-       std::optional<std::chrono::steady_clock::time_point> timestamp = std::nullopt);
+       SensorThresholds thresholds,
+       SensorAlarmState alarmState,
+       std::chrono::steady_clock::time_point timestamp);
    void SetLiveDataMode(bool isLiveData);
    bool IsLiveDataMode() const { return m_isLiveDataMode; }
 

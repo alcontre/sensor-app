@@ -16,6 +16,7 @@
 #include <unordered_set>
 
 class SensorDataGenerator;
+class SensorDataEvent;
 class SensorDataTestGenerator;
 
 enum
@@ -90,6 +91,7 @@ class MainFrame : public wxFrame
    void BindEvents();
    void OnClose(wxCloseEvent &event);
    void OnAgeTimer(wxTimerEvent &event);
+   void ApplySensorDataSample(const SensorDataEvent &sampleEvent, bool recordSample);
    void OnSensorData(wxCommandEvent &event);
    void OnConnectionStatus(wxThreadEvent &event);
    void OnNewMessage(wxThreadEvent &event);

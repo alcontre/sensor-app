@@ -98,7 +98,7 @@ void SensorTreeModel::SetExpansionQuery(std::function<bool(const Node *)> query)
 void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const DataValue &value,
     SensorThresholds thresholds,
     SensorAlarmState alarmState,
-    std::optional<std::chrono::steady_clock::time_point> timestamp)
+    std::chrono::steady_clock::time_point timestamp)
 {
    if (path.empty())
       return;

@@ -119,7 +119,7 @@ void TestWriterUsesCanonicalAlarmSchemaAndPreservesWarnState()
    Expect(SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should load files written by the writer");
    Expect(result.samples.size() == 1, "Writer round-trip should yield one sample");
    Expect(result.samples.front().alarmState == SensorAlarmState::Warn, "Warn state should survive writer/reader round-trip");
-   Expect(result.samples.front().elapsedSeconds.has_value(), "Reader should preserve elapsed_seconds from writer output");
+   Expect(result.samples.front().elapsedSeconds >= 0.0, "Reader should preserve elapsed_seconds from writer output");
 }
 
 void TestWriterOmitsStatusForOkState()
@@ -145,10 +145,10 @@ void TestWriterOmitsStatusForOkState()
 
    SensorDataJsonReader::LoadResult result;
    std::string errorMessage;
-   Expect(SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should load files written without a status field for ok samples");
+   Expect(SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should load files written without an explicit ok status field");
    Expect(result.samples.size() == 1, "Writer round-trip should yield one sample");
    Expect(result.samples.front().alarmState == SensorAlarmState::Ok, "Missing status from the writer should round-trip as SensorAlarmState::Ok");
-   Expect(result.samples.front().elapsedSeconds.has_value(), "Reader should preserve elapsed_seconds for ok samples too");
+   Expect(result.samples.front().elapsedSeconds >= 0.0, "Reader should preserve elapsed_seconds for ok samples too");
 }
 
 void TestReaderDefaultsMissingStatusToOk()
@@ -156,7 +156,7 @@ void TestReaderDefaultsMissingStatusToOk()
    TempFile tempFile(MakeTempPath("_missing_status.json"));
    std::ofstream output(tempFile.path);
    Expect(output.is_open(), "Missing status test file should open for writing");
-   output << R"({"data":[{"path":["rack","psu"],"value":1}]})";
+   output << R"({"data":[{"elapsed_seconds":0.0,"local_time":"2026-04-27T00:00:00.000","path":["rack","psu"],"value":1}]})";
    output.close();
 
    SensorDataJsonReader::LoadResult result;
@@ -166,12 +166,48 @@ void TestReaderDefaultsMissingStatusToOk()
    Expect(result.samples.front().alarmState == SensorAlarmState::Ok, "Samples without status should default to SensorAlarmState::Ok");
 }
 
+void TestReaderRejectsMissingElapsedSeconds()
+{
+   TempFile tempFile(MakeTempPath("_missing_elapsed.json"));
+   std::ofstream output(tempFile.path);
+   Expect(output.is_open(), "Missing elapsed_seconds test file should open for writing");
+   output << R"({"data":[{"local_time":"2026-04-27T00:00:00.000","path":["rack","psu"],"value":1,"status":"ok"}]})";
+   output.close();
+
+   SensorDataJsonReader::LoadResult result;
+   std::string errorMessage;
+   Expect(!SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should reject samples that omit elapsed_seconds");
+   Expect(errorMessage == "Recording did not contain any valid samples.", "Missing elapsed_seconds files should be rejected at the sample level");
+   Expect(result.samples.empty(), "Missing elapsed_seconds files should not produce parsed samples");
+   Expect(result.warnings.size() == 1, "Missing elapsed_seconds files should produce one warning");
+   Expect(result.warnings.front().find("missing 'elapsed_seconds'") != std::string::npos,
+       "Missing elapsed_seconds files should report that elapsed_seconds is required");
+}
+
+void TestReaderRejectsMissingLocalTime()
+{
+   TempFile tempFile(MakeTempPath("_missing_local_time.json"));
+   std::ofstream output(tempFile.path);
+   Expect(output.is_open(), "Missing local_time test file should open for writing");
+   output << R"({"data":[{"elapsed_seconds":0.0,"path":["rack","psu"],"value":1,"status":"ok"}]})";
+   output.close();
+
+   SensorDataJsonReader::LoadResult result;
+   std::string errorMessage;
+   Expect(!SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should reject samples that omit local_time");
+   Expect(errorMessage == "Recording did not contain any valid samples.", "Missing local_time files should be rejected at the sample level");
+   Expect(result.samples.empty(), "Missing local_time files should not produce parsed samples");
+   Expect(result.warnings.size() == 1, "Missing local_time files should produce one warning");
+   Expect(result.warnings.front().find("missing 'local_time'") != std::string::npos,
+       "Missing local_time files should report that local_time is required");
+}
+
 void TestReaderRejectsInvalidStatusValue()
 {
    TempFile tempFile(MakeTempPath("_invalid_status.json"));
    std::ofstream output(tempFile.path);
    Expect(output.is_open(), "Invalid status test file should open for writing");
-   output << R"({"data":[{"path":["rack","psu"],"value":1,"status":"invalid"}]})";
+   output << R"({"data":[{"elapsed_seconds":0.0,"local_time":"2026-04-27T00:00:00.000","path":["rack","psu"],"value":1,"status":"invalid"}]})";
    output.close();
 
    SensorDataJsonReader::LoadResult result;
@@ -187,8 +223,10 @@ void TestReaderRejectsInvalidStatusValue()
 void TestModelVisibilityAndAlarmSummary()
 {
    SensorTreeModel model;
-   model.AddDataSample({"rack", "psu", "voltage"}, DataValue(std::int64_t{12}), {}, SensorAlarmState::Failed);
-   model.AddDataSample({"rack", "fan", "speed"}, DataValue(std::int64_t{3000}), {}, SensorAlarmState::Ok);
+   const auto baseTime = std::chrono::steady_clock::time_point(std::chrono::seconds(10));
+   model.AddDataSample({"rack", "psu", "voltage"}, DataValue(std::int64_t{12}), {}, SensorAlarmState::Failed, baseTime);
+   model.AddDataSample({"rack", "fan", "speed"}, DataValue(std::int64_t{3000}), {}, SensorAlarmState::Ok,
+       baseTime + std::chrono::seconds(1));
 
    Node *rackNode = model.FindNodeByPath({"rack"});
    Node *psuNode  = model.FindNodeByPath({"rack", "psu"});
@@ -252,6 +290,8 @@ int main()
       TestWriterUsesCanonicalAlarmSchemaAndPreservesWarnState();
       TestWriterOmitsStatusForOkState();
       TestReaderDefaultsMissingStatusToOk();
+      TestReaderRejectsMissingElapsedSeconds();
+      TestReaderRejectsMissingLocalTime();
       TestReaderRejectsInvalidStatusValue();
       TestModelVisibilityAndAlarmSummary();
       TestModelPreservesExplicitSampleTimestamps();

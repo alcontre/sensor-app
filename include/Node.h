@@ -39,9 +39,9 @@ class Node
    bool IsFailed() const { return m_alarmState == SensorAlarmState::Failed; }
    bool IsAlarmed() const { return m_alarmState != SensorAlarmState::Ok; }
    void SetValue(const DataValue &value,
-       SensorThresholds thresholds                                    = {},
-       SensorAlarmState alarmState                                    = SensorAlarmState::Ok,
-       std::optional<std::chrono::steady_clock::time_point> timestamp = std::nullopt);
+       SensorThresholds thresholds,
+       SensorAlarmState alarmState,
+       std::chrono::steady_clock::time_point timestamp);
    double GetSecondsSinceUpdate() const;
 
    // Tree utilities

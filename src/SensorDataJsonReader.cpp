@@ -116,31 +116,31 @@ bool ParsePath(const json &entry, size_t entryIndex, std::vector<std::string> &p
 bool ParseAlarmState(const json &entry, size_t entryIndex, SensorAlarmState &alarmState, std::string &errorMessage)
 {
    const auto statusIt = entry.find("status");
-   if (statusIt != entry.end()) {
-      if (!statusIt->is_string()) {
-         errorMessage = DescribeEntry(entryIndex) + ": field 'status' is not a string";
-         return false;
-      }
+   if (statusIt == entry.end()) {
+      alarmState = SensorAlarmState::Ok;
+      return true;
+   }
 
-      const std::string status = statusIt->get<std::string>();
-      if (TryParseSensorAlarmState(status, alarmState)) {
-         return true;
-      }
-
-      errorMessage = DescribeEntry(entryIndex) + ": field 'status' must be 'ok', 'warn', or 'failed'";
+   if (!statusIt->is_string()) {
+      errorMessage = DescribeEntry(entryIndex) + ": field 'status' is not a string";
       return false;
    }
 
-   alarmState = SensorAlarmState::Ok;
-   return true;
+   const std::string status = statusIt->get<std::string>();
+   if (TryParseSensorAlarmState(status, alarmState)) {
+      return true;
+   }
+
+   errorMessage = DescribeEntry(entryIndex) + ": field 'status' must be 'ok', 'warn', or 'failed'";
+   return false;
 }
 
-bool ParseElapsedSeconds(const json &entry, size_t entryIndex, std::optional<double> &elapsedSeconds, std::string &errorMessage)
+bool ParseElapsedSeconds(const json &entry, size_t entryIndex, double &elapsedSeconds, std::string &errorMessage)
 {
    const auto elapsedIt = entry.find("elapsed_seconds");
    if (elapsedIt == entry.end()) {
-      elapsedSeconds.reset();
-      return true;
+      errorMessage = DescribeEntry(entryIndex) + ": missing 'elapsed_seconds'";
+      return false;
    }
 
    if (!elapsedIt->is_number()) {
@@ -158,6 +158,27 @@ bool ParseElapsedSeconds(const json &entry, size_t entryIndex, std::optional<dou
    return true;
 }
 
+bool ValidateLocalTime(const json &entry, size_t entryIndex, std::string &errorMessage)
+{
+   const auto localTimeIt = entry.find("local_time");
+   if (localTimeIt == entry.end()) {
+      errorMessage = DescribeEntry(entryIndex) + ": missing 'local_time'";
+      return false;
+   }
+
+   if (!localTimeIt->is_string()) {
+      errorMessage = DescribeEntry(entryIndex) + ": field 'local_time' is not a string";
+      return false;
+   }
+
+   if (localTimeIt->get_ref<const std::string &>().empty()) {
+      errorMessage = DescribeEntry(entryIndex) + ": field 'local_time' is empty";
+      return false;
+   }
+
+   return true;
+}
+
 bool ParseSample(const json &entry, size_t entryIndex, RecordedSensorSample &sample, std::string &errorMessage)
 {
    if (!entry.is_object()) {
@@ -169,6 +190,9 @@ bool ParseSample(const json &entry, size_t entryIndex, RecordedSensorSample &sam
       return false;
 
    if (!ParseElapsedSeconds(entry, entryIndex, sample.elapsedSeconds, errorMessage))
+      return false;
+
+   if (!ValidateLocalTime(entry, entryIndex, errorMessage))
       return false;
 
    const auto valueIt = entry.find("value");
@@ -229,7 +253,7 @@ bool SensorDataJsonReader::LoadFromFile(const std::string &filePath, LoadResult 
    }
 
    for (size_t entryIndex = 0; entryIndex < dataIt->size(); ++entryIndex) {
-      RecordedSensorSample sample{{}, DataValue(0), {}, SensorAlarmState::Ok, std::nullopt};
+      RecordedSensorSample sample{{}, DataValue(0), {}, SensorAlarmState::Ok, 0.0};
       std::string warning;
       if (ParseSample((*dataIt)[entryIndex], entryIndex, sample, warning)) {
          result.samples.push_back(std::move(sample));

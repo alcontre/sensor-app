@@ -268,6 +268,17 @@ void MainFrame::OnAgeTimer(wxTimerEvent &event)
    m_treeModel->RefreshElapsedTimes();
 }
 
+void MainFrame::ApplySensorDataSample(const SensorDataEvent &sampleEvent, bool recordSample)
+{
+   m_treeModel->AddDataSample(sampleEvent.GetPath(), sampleEvent.GetValue(),
+       sampleEvent.GetThresholds(), sampleEvent.GetAlarmState(), sampleEvent.GetTimestamp());
+
+   if (recordSample && m_dataRecorder) {
+      m_dataRecorder->RecordSample(sampleEvent.GetPath(), sampleEvent.GetValue(),
+          sampleEvent.GetThresholds(), sampleEvent.GetAlarmState());
+   }
+}
+
 void MainFrame::OnSensorData(wxCommandEvent &event)
 {
    auto *sampleEvent = dynamic_cast<SensorDataEvent *>(&event);
@@ -275,11 +286,7 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
       return;
 
    m_treeModel->SetLiveDataMode(true);
-   m_treeModel->AddDataSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
-       sampleEvent->GetThresholds(), sampleEvent->GetAlarmState());
-   if (m_dataRecorder)
-      m_dataRecorder->RecordSample(sampleEvent->GetPath(), sampleEvent->GetValue(),
-          sampleEvent->GetThresholds(), sampleEvent->GetAlarmState());
+   ApplySensorDataSample(*sampleEvent, true);
 
    if (m_showAlarmedOnlyCheck->IsChecked()) {
       m_treeCtrl->Freeze();
@@ -881,13 +888,8 @@ void MainFrame::OnOpenSensorData(wxCommandEvent &WXUNUSED(event))
    m_expandedNodes.clear();
 
    double latestElapsedSeconds = 0.0;
-   bool hasRecordedTiming      = false;
    for (const RecordedSensorSample &sample : loadResult.samples) {
-      if (!sample.elapsedSeconds)
-         continue;
-
-      latestElapsedSeconds = std::max(latestElapsedSeconds, *sample.elapsedSeconds);
-      hasRecordedTiming    = true;
+      latestElapsedSeconds = std::max(latestElapsedSeconds, sample.elapsedSeconds);
    }
 
    const auto loadAnchor    = std::chrono::steady_clock::now();
@@ -895,13 +897,11 @@ void MainFrame::OnOpenSensorData(wxCommandEvent &WXUNUSED(event))
                                                std::chrono::duration<double>(latestElapsedSeconds));
 
    for (const RecordedSensorSample &sample : loadResult.samples) {
-      std::optional<std::chrono::steady_clock::time_point> sampleTimestamp;
-      if (hasRecordedTiming && sample.elapsedSeconds) {
-         sampleTimestamp = recordedStart + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                                               std::chrono::duration<double>(*sample.elapsedSeconds));
-      }
+      const auto sampleTimestamp = recordedStart + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                                                       std::chrono::duration<double>(sample.elapsedSeconds));
 
-      m_treeModel->AddDataSample(sample.path, sample.value, sample.thresholds, sample.alarmState, sampleTimestamp);
+      SensorDataEvent replayEvent(sample.path, sample.value, sample.thresholds, sample.alarmState, sampleTimestamp);
+      ApplySensorDataSample(replayEvent, false);
    }
    m_treeCtrl->Thaw();
 
