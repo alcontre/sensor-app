@@ -119,6 +119,7 @@ void TestWriterUsesCanonicalAlarmSchemaAndPreservesWarnState()
    Expect(SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should load files written by the writer");
    Expect(result.samples.size() == 1, "Writer round-trip should yield one sample");
    Expect(result.samples.front().alarmState == SensorAlarmState::Warn, "Warn state should survive writer/reader round-trip");
+   Expect(result.samples.front().elapsedSeconds.has_value(), "Reader should preserve elapsed_seconds from writer output");
 }
 
 void TestWriterOmitsStatusForOkState()
@@ -147,6 +148,7 @@ void TestWriterOmitsStatusForOkState()
    Expect(SensorDataJsonReader::LoadFromFile(tempFile.path.string(), result, errorMessage), "Reader should load files written without a status field for ok samples");
    Expect(result.samples.size() == 1, "Writer round-trip should yield one sample");
    Expect(result.samples.front().alarmState == SensorAlarmState::Ok, "Missing status from the writer should round-trip as SensorAlarmState::Ok");
+   Expect(result.samples.front().elapsedSeconds.has_value(), "Reader should preserve elapsed_seconds for ok samples too");
 }
 
 void TestReaderDefaultsMissingStatusToOk()
@@ -220,6 +222,25 @@ void TestModelVisibilityAndAlarmSummary()
    Expect(!model.IsNodeVisible(fanNode), "Non-matching branch should remain hidden under combined filters");
 }
 
+void TestModelPreservesExplicitSampleTimestamps()
+{
+   SensorTreeModel model;
+   const auto baseTime = std::chrono::steady_clock::time_point(std::chrono::seconds(100));
+
+   model.AddDataSample({"rack", "fan", "speed"}, DataValue(std::int64_t{3000}), {}, SensorAlarmState::Ok, baseTime);
+   model.AddDataSample({"rack", "fan", "speed"}, DataValue(std::int64_t{3200}), {}, SensorAlarmState::Warn,
+       baseTime + std::chrono::seconds(15));
+
+   Node *speedNode = model.FindNodeByPath({"rack", "fan", "speed"});
+   Expect(speedNode != nullptr, "Explicit timestamp samples should create the destination node");
+   Expect(speedNode->GetUpdateCount() == 2, "Explicit timestamp samples should still update the node count");
+
+   const auto &history = speedNode->GetHistory();
+   Expect(history.size() == 2, "Explicit timestamp samples should be appended to history");
+   Expect(history.front().timestamp == baseTime, "The first explicit timestamp should be preserved in history");
+   Expect(history.back().timestamp == baseTime + std::chrono::seconds(15), "The second explicit timestamp should be preserved in history");
+}
+
 } // namespace
 
 int main()
@@ -233,6 +254,7 @@ int main()
       TestReaderDefaultsMissingStatusToOk();
       TestReaderRejectsInvalidStatusValue();
       TestModelVisibilityAndAlarmSummary();
+      TestModelPreservesExplicitSampleTimestamps();
    } catch (const std::exception &error) {
       std::cerr << error.what() << std::endl;
       return 1;

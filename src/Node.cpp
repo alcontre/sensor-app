@@ -44,19 +44,20 @@ Node *Node::FindChild(const std::string &name) const
 
 void Node::SetValue(const DataValue &value,
     SensorThresholds thresholds,
-    SensorAlarmState alarmState)
+    SensorAlarmState alarmState,
+    std::optional<std::chrono::steady_clock::time_point> timestamp)
 {
-   auto now     = std::chrono::steady_clock::now();
-   m_value      = value;
-   m_hasValue   = true;
-   m_thresholds = std::move(thresholds);
-   m_alarmState = alarmState;
-   m_lastUpdate = now;
+   const auto sampleTime = timestamp.value_or(std::chrono::steady_clock::now());
+   m_value               = value;
+   m_hasValue            = true;
+   m_thresholds          = std::move(thresholds);
+   m_alarmState          = alarmState;
+   m_lastUpdate          = sampleTime;
    ++m_updateCount;
 
    wxASSERT(m_historyLimit > 0);
 
-   TimedSample sample{now, value, alarmState};
+   TimedSample sample{sampleTime, value, alarmState};
    m_history.push_back(sample);
    while (m_history.size() > m_historyLimit) {
       m_history.pop_front();

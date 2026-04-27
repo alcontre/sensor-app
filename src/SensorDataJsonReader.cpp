@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cmath>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -134,6 +135,29 @@ bool ParseAlarmState(const json &entry, size_t entryIndex, SensorAlarmState &ala
    return true;
 }
 
+bool ParseElapsedSeconds(const json &entry, size_t entryIndex, std::optional<double> &elapsedSeconds, std::string &errorMessage)
+{
+   const auto elapsedIt = entry.find("elapsed_seconds");
+   if (elapsedIt == entry.end()) {
+      elapsedSeconds.reset();
+      return true;
+   }
+
+   if (!elapsedIt->is_number()) {
+      errorMessage = DescribeEntry(entryIndex) + ": field 'elapsed_seconds' is not a number";
+      return false;
+   }
+
+   const double parsedElapsed = elapsedIt->get<double>();
+   if (!std::isfinite(parsedElapsed) || parsedElapsed < 0.0) {
+      errorMessage = DescribeEntry(entryIndex) + ": field 'elapsed_seconds' must be a finite non-negative number";
+      return false;
+   }
+
+   elapsedSeconds = parsedElapsed;
+   return true;
+}
+
 bool ParseSample(const json &entry, size_t entryIndex, RecordedSensorSample &sample, std::string &errorMessage)
 {
    if (!entry.is_object()) {
@@ -142,6 +166,9 @@ bool ParseSample(const json &entry, size_t entryIndex, RecordedSensorSample &sam
    }
 
    if (!ParsePath(entry, entryIndex, sample.path, errorMessage))
+      return false;
+
+   if (!ParseElapsedSeconds(entry, entryIndex, sample.elapsedSeconds, errorMessage))
       return false;
 
    const auto valueIt = entry.find("value");
@@ -202,7 +229,7 @@ bool SensorDataJsonReader::LoadFromFile(const std::string &filePath, LoadResult 
    }
 
    for (size_t entryIndex = 0; entryIndex < dataIt->size(); ++entryIndex) {
-      RecordedSensorSample sample{{}, DataValue(0), {}, SensorAlarmState::Ok};
+      RecordedSensorSample sample{{}, DataValue(0), {}, SensorAlarmState::Ok, std::nullopt};
       std::string warning;
       if (ParseSample((*dataIt)[entryIndex], entryIndex, sample, warning)) {
          result.samples.push_back(std::move(sample));

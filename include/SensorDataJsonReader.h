@@ -2,6 +2,7 @@
 
 #include "SensorData.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -11,6 +12,7 @@ struct RecordedSensorSample
    DataValue value;
    SensorThresholds thresholds;
    SensorAlarmState alarmState = SensorAlarmState::Ok;
+   std::optional<double> elapsedSeconds;
 };
 
 class SensorDataJsonReader
