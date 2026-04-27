@@ -9,6 +9,7 @@ class wxWindow;
 class Node;
 class PlotFrame;
 class SensorTreeModel;
+struct PlotViewportState;
 
 class PlotManager
 {
@@ -19,6 +20,8 @@ class PlotManager
    bool HasPlot(const wxString &name) const;
    PlotFrame *CreatePlot(const wxString &name, const std::vector<Node *> &nodes);
    bool AddSensorsToPlot(const wxString &name, const std::vector<Node *> &nodes);
+   void SetLockAllPlotsEnabled(bool locked);
+   bool IsLockAllPlotsEnabled() const { return m_lockAllPlots; }
    std::vector<wxString> GetPlotNames() const;
    struct PlotConfiguration
    {
@@ -31,6 +34,7 @@ class PlotManager
 
  private:
    static std::string NormalizeName(const wxString &name);
+   void HandleViewportChanged(PlotFrame *source, const PlotViewportState &viewport);
    void HandlePlotClosed(const std::string &name);
 
    struct PlotEntry
@@ -41,5 +45,6 @@ class PlotManager
 
    wxWindow *m_parent;
    SensorTreeModel *m_model;
+   bool m_lockAllPlots;
    std::unordered_map<std::string, PlotEntry> m_plots;
 };

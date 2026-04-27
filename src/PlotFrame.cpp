@@ -27,15 +27,169 @@ class PlotFrame::PlotCanvas : public wxPanel
        m_owner(owner)
    {
       SetBackgroundStyle(wxBG_STYLE_PAINT);
+      SetToolTip("Mouse wheel to zoom in/out, click and drag to pan");
       Bind(wxEVT_PAINT, &PlotCanvas::OnPaint, this);
       Bind(wxEVT_SIZE, &PlotCanvas::OnSize, this);
+      Bind(wxEVT_MOUSEWHEEL, &PlotCanvas::OnMouseWheel, this);
+      Bind(wxEVT_LEFT_DOWN, &PlotCanvas::OnLeftDown, this);
+      Bind(wxEVT_LEFT_UP, &PlotCanvas::OnLeftUp, this);
+      Bind(wxEVT_MOTION, &PlotCanvas::OnMotion, this);
+      Bind(wxEVT_LEAVE_WINDOW, &PlotCanvas::OnLeaveWindow, this);
+      Bind(wxEVT_MOUSE_CAPTURE_LOST, &PlotCanvas::OnMouseCaptureLost, this);
    }
 
  private:
+   struct ViewSnapshot
+   {
+      bool valid = false;
+      wxRect plotRect;
+      std::chrono::steady_clock::time_point xMin;
+      std::chrono::steady_clock::time_point xMax;
+   };
+
+   struct DragState
+   {
+      bool active = false;
+      wxPoint startPosition;
+      PlotViewportState startViewport;
+      ViewSnapshot startView;
+   };
+
+   bool HasInteractivePlot(const wxPoint &position) const
+   {
+      return m_lastView.valid && m_lastView.plotRect.Contains(position);
+   }
+
+   void ClearViewSnapshot()
+   {
+      m_lastView = ViewSnapshot{};
+   }
+
+   void UpdateViewSnapshot(const wxRect &plotRect,
+       std::chrono::steady_clock::time_point xMin,
+       std::chrono::steady_clock::time_point xMax)
+   {
+      m_lastView.valid    = true;
+      m_lastView.plotRect = plotRect;
+      m_lastView.xMin     = xMin;
+      m_lastView.xMax     = xMax;
+   }
+
+   void StopDragging(bool releaseMouse)
+   {
+      m_drag.active = false;
+      if (releaseMouse && HasCapture())
+         ReleaseMouse();
+   }
+
    void OnSize(wxSizeEvent &event)
    {
       Refresh();
       event.Skip();
+   }
+
+   void OnMouseWheel(wxMouseEvent &event)
+   {
+      if (!HasInteractivePlot(event.GetPosition())) {
+         event.Skip();
+         return;
+      }
+
+      const int wheelDelta = event.GetWheelDelta();
+      const int rotation   = event.GetWheelRotation();
+      if (wheelDelta == 0 || rotation == 0)
+         return;
+
+      PlotViewportState viewport = m_owner->GetViewportState();
+      const double steps         = static_cast<double>(rotation) / static_cast<double>(wheelDelta);
+      const double zoomFactor    = std::pow(0.85, steps);
+
+      const double plotLeft  = static_cast<double>(m_lastView.plotRect.GetLeft());
+      const double plotWidth = std::max(1.0, static_cast<double>(m_lastView.plotRect.GetWidth()));
+      const double xFraction = std::clamp((static_cast<double>(event.GetX()) - plotLeft) / plotWidth, 0.0, 1.0);
+
+      const double currentSpanSeconds = std::max(1e-3, std::chrono::duration<double>(m_lastView.xMax - m_lastView.xMin).count());
+      const double newSpanSeconds     = std::max(1e-3, currentSpanSeconds * zoomFactor);
+      const auto anchorOffset         = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+          std::chrono::duration<double>(currentSpanSeconds * xFraction));
+      const auto anchorTime  = m_lastView.xMin + anchorOffset;
+      const auto leadingSpan = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+          std::chrono::duration<double>(newSpanSeconds * xFraction));
+      const auto fullSpan = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+          std::chrono::duration<double>(newSpanSeconds));
+
+      if (viewport.followLatest) {
+         viewport.xMax = m_lastView.xMax;
+         viewport.xMin = *viewport.xMax - fullSpan;
+      } else {
+         viewport.xMin = anchorTime - leadingSpan;
+         viewport.xMax = *viewport.xMin + fullSpan;
+      }
+      m_owner->SetViewportState(viewport);
+   }
+
+   void OnLeftDown(wxMouseEvent &event)
+   {
+      if (!HasInteractivePlot(event.GetPosition())) {
+         event.Skip();
+         return;
+      }
+
+      m_drag.active        = true;
+      m_drag.startPosition = event.GetPosition();
+      m_drag.startViewport = m_owner->GetViewportState();
+      m_drag.startView     = m_lastView;
+
+      if (!HasCapture())
+         CaptureMouse();
+      SetFocus();
+   }
+
+   void OnLeftUp(wxMouseEvent &event)
+   {
+      if (m_drag.active)
+         StopDragging(true);
+      event.Skip();
+   }
+
+   void OnMotion(wxMouseEvent &event)
+   {
+      if (!m_drag.active)
+         return;
+
+      if (!event.LeftIsDown()) {
+         StopDragging(true);
+         return;
+      }
+
+      PlotViewportState viewport = m_drag.startViewport;
+      const double plotWidth     = std::max(1.0, static_cast<double>(m_drag.startView.plotRect.GetWidth()));
+      const int dx               = event.GetX() - m_drag.startPosition.x;
+
+      if (dx == 0)
+         return;
+
+      const double timeSpanSeconds = std::max(1e-3, std::chrono::duration<double>(m_drag.startView.xMax - m_drag.startView.xMin).count());
+      const double deltaSeconds    = (static_cast<double>(dx) / plotWidth) * timeSpanSeconds;
+      const auto deltaDuration     = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+          std::chrono::duration<double>(deltaSeconds));
+
+      viewport.xMin         = m_drag.startView.xMin - deltaDuration;
+      viewport.xMax         = m_drag.startView.xMax - deltaDuration;
+      viewport.followLatest = false;
+      m_owner->SetViewportState(viewport);
+   }
+
+   void OnLeaveWindow(wxMouseEvent &event)
+   {
+      if (m_drag.active)
+         StopDragging(true);
+      event.Skip();
+   }
+
+   void OnMouseCaptureLost(wxMouseCaptureLostEvent &WXUNUSED(event))
+   {
+      m_drag.active = false;
    }
 
    void OnPaint(wxPaintEvent &WXUNUSED(event))
@@ -54,6 +208,8 @@ class PlotFrame::PlotCanvas : public wxPanel
       std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
       if (!gc)
          return;
+
+      ClearViewSnapshot();
 
       gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
       gc->SetInterpolationQuality(wxINTERPOLATION_DEFAULT);
@@ -138,18 +294,31 @@ class PlotFrame::PlotCanvas : public wxPanel
          return;
       }
 
-      const auto windowDuration = m_owner->GetTimeRangeDuration();
-      const bool isLiveData     = m_owner->GetModel()->IsLiveDataMode();
-      const auto now            = std::chrono::steady_clock::now();
+      const auto windowDuration         = m_owner->GetTimeRangeDuration();
+      const PlotViewportState &viewport = m_owner->GetViewportState();
+      const bool isLiveData             = m_owner->GetModel()->IsLiveDataMode();
+      const auto now                    = std::chrono::steady_clock::now();
 
       // Define the time window that maps to the plot rectangle.
       // For fixed windows we end at the newest known sample (or now, whichever is later).
-      const auto viewEnd   = isLiveData ? std::max(now, latestOverall) : latestOverall;
-      const bool hasWindow = static_cast<bool>(windowDuration);
+      const auto defaultViewEnd = isLiveData ? std::max(now, latestOverall) : latestOverall;
+      const bool hasCustomXView = viewport.xMin.has_value() && viewport.xMax.has_value();
+      auto customSpan           = std::chrono::steady_clock::duration::zero();
+      if (hasCustomXView) {
+         customSpan = *viewport.xMax - *viewport.xMin;
+         if (customSpan <= std::chrono::steady_clock::duration::zero())
+            customSpan = std::chrono::milliseconds(1);
+      }
+
+      const auto viewEnd   = (hasCustomXView && !viewport.followLatest) ? *viewport.xMax : defaultViewEnd;
+      const bool hasWindow = hasCustomXView || static_cast<bool>(windowDuration);
 
       auto viewStart = std::chrono::steady_clock::time_point::min();
-      if (windowDuration)
+      if (hasCustomXView) {
+         viewStart = viewport.followLatest ? (viewEnd - customSpan) : *viewport.xMin;
+      } else if (windowDuration) {
          viewStart = viewEnd - *windowDuration;
+      }
 
       std::vector<std::vector<const TimedSample *>> raw(series.size());
       bool hasNumericSamples = false;
@@ -347,8 +516,8 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       // Compute the plot start time based on the window duration (or the earliest sample
       // when no window is set).
-      auto plotStart = windowDuration ? viewStart : earliest;
-      auto plotEnd   = windowDuration ? viewEnd : (isLiveData ? std::max(now, latest) : latest);
+      auto plotStart = hasCustomXView ? (viewport.followLatest ? (viewEnd - customSpan) : *viewport.xMin) : (windowDuration ? viewStart : earliest);
+      auto plotEnd   = hasCustomXView ? (viewport.followLatest ? viewEnd : *viewport.xMax) : (windowDuration ? viewEnd : (isLiveData ? std::max(now, latest) : latest));
       if (plotStart > plotEnd)
          plotStart = plotEnd - std::chrono::milliseconds(1);
 
@@ -366,6 +535,7 @@ class PlotFrame::PlotCanvas : public wxPanel
       };
 
       const bool usingCategoricalAxis = hasCategoricalSamples && !hasNumericSamples;
+      UpdateViewSnapshot(wxRect(origin.x, plotTop, plotWidth, plotHeight), plotStart, plotEnd);
 
       wxGraphicsPath gridPath = gc->CreatePath();
       const double leftX      = static_cast<double>(leftMargin);
@@ -512,6 +682,8 @@ class PlotFrame::PlotCanvas : public wxPanel
    }
 
    PlotFrame *m_owner;
+   ViewSnapshot m_lastView;
+   DragState m_drag;
 };
 
 PlotFrame::PlotFrame(wxWindow *parent, const wxString &title, SensorTreeModel *model) :
@@ -524,7 +696,11 @@ PlotFrame::PlotFrame(wxWindow *parent, const wxString &title, SensorTreeModel *m
     m_onClosed(),
     m_nextColourIndex(0),
     m_timeButtons(),
-    m_timeRange(TimeRange::All)
+    m_lockAllButton(nullptr),
+    m_lockAllPlots(false),
+    m_viewport(),
+    m_onViewportChanged(),
+    m_onLockAllPlotsChanged()
 {
    wxPanel *controlPanel    = new wxPanel(this, wxID_ANY);
    wxBoxSizer *controlSizer = new wxBoxSizer(wxHORIZONTAL);
@@ -556,6 +732,11 @@ PlotFrame::PlotFrame(wxWindow *parent, const wxString &title, SensorTreeModel *m
 
    controlSizer->AddStretchSpacer();
 
+   m_lockAllButton = new wxToggleButton(controlPanel, wxID_ANY, "Lock All Plots");
+   m_lockAllButton->SetToolTip("Mirror pan and zoom changes across every open plot window.");
+   controlSizer->Add(m_lockAllButton, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
+   m_lockAllButton->Bind(wxEVT_TOGGLEBUTTON, &PlotFrame::OnLockAllPlotsButton, this);
+
    wxBoxSizer *rootSizer = new wxBoxSizer(wxVERTICAL);
    rootSizer->Add(controlPanel, 0, wxEXPAND | wxALL, 5);
    rootSizer->Add(m_canvas, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 5);
@@ -578,9 +759,58 @@ bool PlotFrame::AddSensors(const std::vector<Node *> &nodes)
    return appended;
 }
 
+void PlotFrame::SetOnViewportChanged(std::function<void(const PlotViewportState &)> callback)
+{
+   m_onViewportChanged = std::move(callback);
+}
+
+void PlotFrame::SetOnLockAllPlotsChanged(std::function<void(bool)> callback)
+{
+   m_onLockAllPlotsChanged = std::move(callback);
+}
+
 void PlotFrame::SetOnClosed(std::function<void()> callback)
 {
    m_onClosed = std::move(callback);
+}
+
+void PlotFrame::SetViewportState(const PlotViewportState &viewport)
+{
+   ApplyViewportState(viewport, true);
+}
+
+void PlotFrame::SetSynchronizedViewportState(const PlotViewportState &viewport)
+{
+   ApplyViewportState(viewport, false);
+}
+
+void PlotFrame::SetLockAllPlotsEnabled(bool enabled)
+{
+   ApplyLockAllPlotsState(enabled, false);
+}
+
+void PlotFrame::ApplyViewportState(const PlotViewportState &viewport, bool notify)
+{
+   PlotViewportState nextViewport = viewport;
+   if (nextViewport.xMin.has_value() && nextViewport.xMax.has_value() && *nextViewport.xMax <= *nextViewport.xMin)
+      nextViewport.xMax = *nextViewport.xMin + std::chrono::milliseconds(1);
+
+   m_viewport = std::move(nextViewport);
+   UpdateTimeRangeButtons();
+   m_canvas->Refresh();
+
+   if (notify && m_onViewportChanged)
+      m_onViewportChanged(m_viewport);
+}
+
+void PlotFrame::ApplyLockAllPlotsState(bool locked, bool notify)
+{
+   m_lockAllPlots = locked;
+   if (m_lockAllButton)
+      m_lockAllButton->SetValue(locked);
+
+   if (notify && m_onLockAllPlotsChanged)
+      m_onLockAllPlotsChanged(locked);
 }
 
 void PlotFrame::OnTimer(wxTimerEvent &WXUNUSED(event))
@@ -680,14 +910,28 @@ void PlotFrame::OnTimeRangeButton(wxCommandEvent &event)
    }
 }
 
+void PlotFrame::OnLockAllPlotsButton(wxCommandEvent &event)
+{
+   ApplyLockAllPlotsState(event.GetInt() != 0, true);
+}
+
 void PlotFrame::SetTimeRange(TimeRange range)
 {
-   if (m_timeRange == range) {
+   PlotViewportState nextViewport = m_viewport;
+   nextViewport.presetRange       = range;
+   nextViewport.followLatest      = true;
+   nextViewport.xMin.reset();
+   nextViewport.xMax.reset();
+
+   const bool isAlreadyActive = nextViewport.presetRange == m_viewport.presetRange &&
+                                !m_viewport.xMin.has_value() &&
+                                !m_viewport.xMax.has_value() &&
+                                m_viewport.followLatest;
+
+   if (isAlreadyActive) {
       UpdateTimeRangeButtons();
    } else {
-      m_timeRange = range;
-      UpdateTimeRangeButtons();
-      m_canvas->Refresh();
+      ApplyViewportState(nextViewport, true);
    }
 }
 
@@ -695,13 +939,13 @@ void PlotFrame::UpdateTimeRangeButtons()
 {
    for (auto &entry : m_timeButtons) {
       if (entry.button)
-         entry.button->SetValue(entry.range == m_timeRange);
+         entry.button->SetValue(entry.range == m_viewport.presetRange);
    }
 }
 
 std::optional<std::chrono::seconds> PlotFrame::GetTimeRangeDuration() const
 {
-   switch (m_timeRange) {
+   switch (m_viewport.presetRange) {
       case TimeRange::Last20Seconds:
          return std::chrono::seconds(20);
       case TimeRange::Last1Minute:

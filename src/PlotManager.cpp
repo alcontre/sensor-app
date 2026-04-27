@@ -8,6 +8,7 @@
 #include <wx/window.h>
 
 #include <algorithm>
+#include <optional>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -15,6 +16,7 @@
 PlotManager::PlotManager(wxWindow *parent, SensorTreeModel *model) :
     m_parent(parent),
     m_model(model),
+    m_lockAllPlots(false),
     m_plots()
 {
 }
@@ -37,7 +39,26 @@ PlotFrame *PlotManager::CreatePlot(const wxString &name, const std::vector<Node 
    if (existing != m_plots.end())
       return existing->second.frame;
 
+   std::optional<PlotViewportState> initialViewport;
+   if (m_lockAllPlots) {
+      for (const auto &entry : m_plots) {
+         if (entry.second.frame) {
+            initialViewport = entry.second.frame->GetViewportState();
+            break;
+         }
+      }
+   }
+
    PlotFrame *frame = new PlotFrame(m_parent, name, m_model);
+   frame->SetOnViewportChanged([this, frame](const PlotViewportState &viewport) {
+      HandleViewportChanged(frame, viewport);
+   });
+   frame->SetOnLockAllPlotsChanged([this](bool locked) {
+      SetLockAllPlotsEnabled(locked);
+   });
+   frame->SetLockAllPlotsEnabled(m_lockAllPlots);
+   if (initialViewport.has_value())
+      frame->SetSynchronizedViewportState(*initialViewport);
    frame->AddSensors(nodes);
    frame->SetOnClosed([this, key]() {
       HandlePlotClosed(key);
@@ -60,6 +81,15 @@ bool PlotManager::AddSensorsToPlot(const wxString &name, const std::vector<Node 
    const bool appended = frame->AddSensors(nodes);
    frame->Raise();
    return appended;
+}
+
+void PlotManager::SetLockAllPlotsEnabled(bool locked)
+{
+   m_lockAllPlots = locked;
+   for (auto &entry : m_plots) {
+      if (entry.second.frame)
+         entry.second.frame->SetLockAllPlotsEnabled(locked);
+   }
 }
 
 std::vector<wxString> PlotManager::GetPlotNames() const
@@ -189,6 +219,19 @@ std::string PlotManager::NormalizeName(const wxString &name)
    trimmed.Trim(true);
    trimmed.Trim(false);
    return PathUtils::ToUtf8(trimmed.Lower());
+}
+
+void PlotManager::HandleViewportChanged(PlotFrame *source, const PlotViewportState &viewport)
+{
+   if (!m_lockAllPlots)
+      return;
+
+   for (auto &entry : m_plots) {
+      PlotFrame *frame = entry.second.frame;
+      if (!frame || frame == source)
+         continue;
+      frame->SetSynchronizedViewportState(viewport);
+   }
 }
 
 void PlotManager::HandlePlotClosed(const std::string &name)
