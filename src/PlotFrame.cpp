@@ -19,6 +19,84 @@
 #include <unordered_map>
 #include <vector>
 
+namespace {
+
+using SteadyTimePoint = std::chrono::steady_clock::time_point;
+using SteadyDuration  = std::chrono::steady_clock::duration;
+
+struct ResolvedXWindow
+{
+   bool hasWindow            = false;
+   SteadyTimePoint viewStart = SteadyTimePoint::min();
+   SteadyTimePoint viewEnd   = SteadyTimePoint::min();
+   SteadyTimePoint plotStart = SteadyTimePoint::min();
+   SteadyTimePoint plotEnd   = SteadyTimePoint::min();
+};
+
+SteadyDuration ClampPositiveDuration(SteadyDuration duration)
+{
+   if (duration <= SteadyDuration::zero())
+      return std::chrono::milliseconds(1);
+   return duration;
+}
+
+bool AreSameViewportState(const PlotViewportState &lhs, const PlotViewportState &rhs)
+{
+   return lhs.presetRange == rhs.presetRange &&
+          lhs.followLatest == rhs.followLatest &&
+          lhs.xMin == rhs.xMin &&
+          lhs.xMax == rhs.xMax;
+}
+
+PlotViewportState WithXWindow(PlotViewportState viewport,
+    SteadyTimePoint viewStart,
+    SteadyTimePoint viewEnd,
+    bool followLatest)
+{
+   if (viewEnd <= viewStart)
+      viewEnd = viewStart + std::chrono::milliseconds(1);
+
+   viewport.xMin         = viewStart;
+   viewport.xMax         = viewEnd;
+   viewport.followLatest = followLatest;
+   return viewport;
+}
+
+ResolvedXWindow ResolveXWindow(const PlotViewportState &viewport,
+    const std::optional<std::chrono::seconds> &windowDuration,
+    bool isLiveData,
+    SteadyTimePoint latestOverall,
+    SteadyTimePoint now,
+    SteadyTimePoint earliest,
+    SteadyTimePoint latest)
+{
+   ResolvedXWindow resolved;
+
+   const SteadyTimePoint defaultViewEnd = isLiveData ? std::max(now, latestOverall) : latestOverall;
+   const bool hasCustomXView            = viewport.xMin.has_value() && viewport.xMax.has_value();
+
+   resolved.hasWindow = hasCustomXView || static_cast<bool>(windowDuration);
+
+   if (hasCustomXView) {
+      const SteadyDuration customSpan = ClampPositiveDuration(*viewport.xMax - *viewport.xMin);
+      resolved.viewEnd                = viewport.followLatest ? defaultViewEnd : *viewport.xMax;
+      resolved.viewStart              = viewport.followLatest ? (resolved.viewEnd - customSpan) : *viewport.xMin;
+   } else if (windowDuration) {
+      const SteadyDuration presetSpan = std::chrono::duration_cast<SteadyDuration>(*windowDuration);
+      resolved.viewEnd                = defaultViewEnd;
+      resolved.viewStart              = resolved.viewEnd - presetSpan;
+   }
+
+   resolved.plotStart = resolved.hasWindow ? resolved.viewStart : earliest;
+   resolved.plotEnd   = resolved.hasWindow ? resolved.viewEnd : (isLiveData ? std::max(now, latest) : latest);
+   if (resolved.plotEnd <= resolved.plotStart)
+      resolved.plotStart = resolved.plotEnd - std::chrono::milliseconds(1);
+
+   return resolved;
+}
+
+} // namespace
+
 class PlotFrame::PlotCanvas : public wxPanel
 {
  public:
@@ -34,7 +112,6 @@ class PlotFrame::PlotCanvas : public wxPanel
       Bind(wxEVT_LEFT_DOWN, &PlotCanvas::OnLeftDown, this);
       Bind(wxEVT_LEFT_UP, &PlotCanvas::OnLeftUp, this);
       Bind(wxEVT_MOTION, &PlotCanvas::OnMotion, this);
-      Bind(wxEVT_LEAVE_WINDOW, &PlotCanvas::OnLeaveWindow, this);
       Bind(wxEVT_MOUSE_CAPTURE_LOST, &PlotCanvas::OnMouseCaptureLost, this);
    }
 
@@ -119,11 +196,9 @@ class PlotFrame::PlotCanvas : public wxPanel
           std::chrono::duration<double>(newSpanSeconds));
 
       if (viewport.followLatest) {
-         viewport.xMax = m_lastView.xMax;
-         viewport.xMin = *viewport.xMax - fullSpan;
+         viewport = WithXWindow(std::move(viewport), m_lastView.xMax - fullSpan, m_lastView.xMax, true);
       } else {
-         viewport.xMin = anchorTime - leadingSpan;
-         viewport.xMax = *viewport.xMin + fullSpan;
+         viewport = WithXWindow(std::move(viewport), anchorTime - leadingSpan, anchorTime - leadingSpan + fullSpan, false);
       }
       m_owner->SetViewportState(viewport);
    }
@@ -174,17 +249,8 @@ class PlotFrame::PlotCanvas : public wxPanel
       const auto deltaDuration     = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
           std::chrono::duration<double>(deltaSeconds));
 
-      viewport.xMin         = m_drag.startView.xMin - deltaDuration;
-      viewport.xMax         = m_drag.startView.xMax - deltaDuration;
-      viewport.followLatest = false;
+      viewport = WithXWindow(std::move(viewport), m_drag.startView.xMin - deltaDuration, m_drag.startView.xMax - deltaDuration, false);
       m_owner->SetViewportState(viewport);
-   }
-
-   void OnLeaveWindow(wxMouseEvent &event)
-   {
-      if (m_drag.active)
-         StopDragging(true);
-      event.Skip();
    }
 
    void OnMouseCaptureLost(wxMouseCaptureLostEvent &WXUNUSED(event))
@@ -301,24 +367,10 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       // Define the time window that maps to the plot rectangle.
       // For fixed windows we end at the newest known sample (or now, whichever is later).
-      const auto defaultViewEnd = isLiveData ? std::max(now, latestOverall) : latestOverall;
-      const bool hasCustomXView = viewport.xMin.has_value() && viewport.xMax.has_value();
-      auto customSpan           = std::chrono::steady_clock::duration::zero();
-      if (hasCustomXView) {
-         customSpan = *viewport.xMax - *viewport.xMin;
-         if (customSpan <= std::chrono::steady_clock::duration::zero())
-            customSpan = std::chrono::milliseconds(1);
-      }
-
-      const auto viewEnd   = (hasCustomXView && !viewport.followLatest) ? *viewport.xMax : defaultViewEnd;
-      const bool hasWindow = hasCustomXView || static_cast<bool>(windowDuration);
-
-      auto viewStart = std::chrono::steady_clock::time_point::min();
-      if (hasCustomXView) {
-         viewStart = viewport.followLatest ? (viewEnd - customSpan) : *viewport.xMin;
-      } else if (windowDuration) {
-         viewStart = viewEnd - *windowDuration;
-      }
+      const ResolvedXWindow xWindow   = ResolveXWindow(viewport, windowDuration, isLiveData, latestOverall, now, std::chrono::steady_clock::time_point::min(), std::chrono::steady_clock::time_point::min());
+      const bool hasWindow            = xWindow.hasWindow;
+      const SteadyTimePoint viewStart = xWindow.viewStart;
+      const SteadyTimePoint viewEnd   = xWindow.viewEnd;
 
       std::vector<std::vector<const TimedSample *>> raw(series.size());
       bool hasNumericSamples = false;
@@ -516,10 +568,9 @@ class PlotFrame::PlotCanvas : public wxPanel
 
       // Compute the plot start time based on the window duration (or the earliest sample
       // when no window is set).
-      auto plotStart = hasCustomXView ? (viewport.followLatest ? (viewEnd - customSpan) : *viewport.xMin) : (windowDuration ? viewStart : earliest);
-      auto plotEnd   = hasCustomXView ? (viewport.followLatest ? viewEnd : *viewport.xMax) : (windowDuration ? viewEnd : (isLiveData ? std::max(now, latest) : latest));
-      if (plotStart > plotEnd)
-         plotStart = plotEnd - std::chrono::milliseconds(1);
+      const ResolvedXWindow plotWindow = ResolveXWindow(viewport, windowDuration, isLiveData, latestOverall, now, earliest, latest);
+      const SteadyTimePoint plotStart  = plotWindow.plotStart;
+      const SteadyTimePoint plotEnd    = plotWindow.plotEnd;
 
       const double timeRange  = std::max(1e-9, std::chrono::duration<double>(plotEnd - plotStart).count());
       const double valueRange = std::max(1e-9, maxValue - minValue);
@@ -794,6 +845,9 @@ void PlotFrame::ApplyViewportState(const PlotViewportState &viewport, bool notif
    PlotViewportState nextViewport = viewport;
    if (nextViewport.xMin.has_value() && nextViewport.xMax.has_value() && *nextViewport.xMax <= *nextViewport.xMin)
       nextViewport.xMax = *nextViewport.xMin + std::chrono::milliseconds(1);
+
+   if (AreSameViewportState(m_viewport, nextViewport))
+      return;
 
    m_viewport = std::move(nextViewport);
    UpdateTimeRangeButtons();
