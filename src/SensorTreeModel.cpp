@@ -63,6 +63,11 @@ SensorTreeModel::~SensorTreeModel()
 void SensorTreeModel::SetLiveDataMode(bool isLiveData)
 {
    m_isLiveDataMode = isLiveData;
+   if (m_isLiveDataMode) {
+      m_elapsedReferenceTime.reset();
+   } else {
+      m_elapsedReferenceTime.reset();
+   }
 }
 
 void SensorTreeModel::SetShowAlarmedOnly(bool showAlarmedOnly)
@@ -154,6 +159,11 @@ void SensorTreeModel::AddDataSample(const std::vector<std::string> &path, const 
    }
 
    node->SetValue(value, std::move(thresholds), alarmState, timestamp);
+
+   if (!m_isLiveDataMode) {
+      if (!m_elapsedReferenceTime.has_value() || timestamp > *m_elapsedReferenceTime)
+         m_elapsedReferenceTime = timestamp;
+   }
 
    std::vector<bool> afterStates;
    afterStates.reserve(fullPath.size());
@@ -311,7 +321,9 @@ void SensorTreeModel::GetValue(wxVariant &variant, const wxDataViewItem &item, u
          break;
       case COL_ELAPSED:
          if (node->HasValue()) {
-            double seconds = node->GetSecondsSinceUpdate();
+            const double seconds = (!m_isLiveDataMode && m_elapsedReferenceTime.has_value())
+                                       ? node->GetSecondsSinceUpdate(*m_elapsedReferenceTime)
+                                       : node->GetSecondsSinceUpdate();
             variant        = wxString::Format("%.1f", seconds);
          } else {
             variant = wxString("");
@@ -454,6 +466,7 @@ void SensorTreeModel::RefreshElapsedTimes()
 void SensorTreeModel::Clear()
 {
    m_rootNodes.clear();
+   m_elapsedReferenceTime.reset();
    Cleared();
 }
 

@@ -137,11 +137,15 @@ void Node::GetLeafNodesRecursive(std::vector<Node *> &leaves) const
 
 double Node::GetSecondsSinceUpdate() const
 {
+   return GetSecondsSinceUpdate(std::chrono::steady_clock::now());
+}
+
+double Node::GetSecondsSinceUpdate(std::chrono::steady_clock::time_point referenceTime) const
+{
    if (!m_hasValue)
       return 0.0;
 
-   auto now     = std::chrono::steady_clock::now();
-   auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(now - m_lastUpdate);
+   auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(referenceTime - m_lastUpdate);
    return elapsed.count();
 }
 

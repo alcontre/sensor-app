@@ -279,6 +279,40 @@ void TestModelPreservesExplicitSampleTimestamps()
    Expect(history.back().timestamp == baseTime + std::chrono::seconds(15), "The second explicit timestamp should be preserved in history");
 }
 
+void TestLoadedRecordingsFreezeElapsedColumn()
+{
+   SensorTreeModel model;
+   model.SetLiveDataMode(false);
+
+   const auto baseTime = std::chrono::steady_clock::time_point(std::chrono::seconds(100));
+   model.AddDataSample({"rack", "psu", "voltage"}, DataValue(std::int64_t{12}), {}, SensorAlarmState::Ok, baseTime);
+   model.AddDataSample({"rack", "fan", "speed"}, DataValue(std::int64_t{3200}), {}, SensorAlarmState::Warn,
+       baseTime + std::chrono::seconds(5));
+
+   Node *voltageNode = model.FindNodeByPath({"rack", "psu", "voltage"});
+   Node *speedNode   = model.FindNodeByPath({"rack", "fan", "speed"});
+   Expect(voltageNode != nullptr, "Offline elapsed test should create the voltage node");
+   Expect(speedNode != nullptr, "Offline elapsed test should create the speed node");
+
+   wxVariant voltageElapsed;
+   wxVariant speedElapsed;
+   model.GetValue(voltageElapsed, wxDataViewItem(static_cast<void *>(voltageNode)), SensorTreeModel::COL_ELAPSED);
+   model.GetValue(speedElapsed, wxDataViewItem(static_cast<void *>(speedNode)), SensorTreeModel::COL_ELAPSED);
+
+   Expect(voltageElapsed.GetString() == "5.0", "Offline elapsed values should be measured from the latest recorded sample");
+   Expect(speedElapsed.GetString() == "0.0", "The newest recorded sample should report zero elapsed time offline");
+
+   model.RefreshElapsedTimes();
+
+   wxVariant voltageElapsedAfterRefresh;
+   wxVariant speedElapsedAfterRefresh;
+   model.GetValue(voltageElapsedAfterRefresh, wxDataViewItem(static_cast<void *>(voltageNode)), SensorTreeModel::COL_ELAPSED);
+   model.GetValue(speedElapsedAfterRefresh, wxDataViewItem(static_cast<void *>(speedNode)), SensorTreeModel::COL_ELAPSED);
+
+   Expect(voltageElapsedAfterRefresh.GetString() == "5.0", "Offline elapsed values should stay fixed across timer refreshes");
+   Expect(speedElapsedAfterRefresh.GetString() == "0.0", "Offline newest-sample elapsed should stay fixed across timer refreshes");
+}
+
 } // namespace
 
 int main()
@@ -295,6 +329,7 @@ int main()
       TestReaderRejectsInvalidStatusValue();
       TestModelVisibilityAndAlarmSummary();
       TestModelPreservesExplicitSampleTimestamps();
+      TestLoadedRecordingsFreezeElapsedColumn();
    } catch (const std::exception &error) {
       std::cerr << error.what() << std::endl;
       return 1;

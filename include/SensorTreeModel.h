@@ -86,6 +86,7 @@ class SensorTreeModel : public wxDataViewModel
    wxString m_filterLower;
    bool m_showAlarmedOnly = false;
    bool m_isLiveDataMode  = true;
+   std::optional<std::chrono::steady_clock::time_point> m_elapsedReferenceTime;
 
    Node *GetNodeFromItem(const wxDataViewItem &item) const;
    wxDataViewItem CreateItemFromNode(Node *node) const;

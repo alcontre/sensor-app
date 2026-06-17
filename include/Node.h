@@ -43,6 +43,7 @@ class Node
        SensorAlarmState alarmState,
        std::chrono::steady_clock::time_point timestamp);
    double GetSecondsSinceUpdate() const;
+   double GetSecondsSinceUpdate(std::chrono::steady_clock::time_point referenceTime) const;
 
    // Tree utilities
    std::vector<std::string> GetPath() const;
