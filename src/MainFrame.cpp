@@ -93,9 +93,11 @@ void MainFrame::CreateMenuBar()
    wxMenu *menuFile = new wxMenu;
    menuFile->Append(ID_Hello, "&About...",
        "Show information about this application");
-   // Toggle automatic data generator
-   menuFile->AppendCheckItem(ID_ToggleDataGen, "&Toggle Data Generator",
-       "Enable or disable automatic sensor data generation");
+   if (SENSOR_TREE_ENABLE_TEST_DATA_GENERATOR_UI) {
+      // Toggle automatic data generator
+      menuFile->AppendCheckItem(ID_ToggleDataGen, "&Toggle Data Generator",
+          "Enable or disable automatic sensor data generation");
+   }
    menuFile->AppendSeparator();
    menuFile->Append(ID_RotateLog, "&Rotate Log",
        "Finish the current log file and start a new one");
@@ -227,7 +229,9 @@ void MainFrame::BindEvents()
 {
    // Bind menu events using modern Bind() syntax
    Bind(wxEVT_MENU, &MainFrame::OnAbout, this, ID_Hello);
-   Bind(wxEVT_MENU, &MainFrame::OnToggleDataGenerator, this, ID_ToggleDataGen);
+   if (SENSOR_TREE_ENABLE_TEST_DATA_GENERATOR_UI) {
+      Bind(wxEVT_MENU, &MainFrame::OnToggleDataGenerator, this, ID_ToggleDataGen);
+   }
    Bind(wxEVT_MENU, &MainFrame::OnExit, this, wxID_EXIT);
    // Bind close event to ensure model is disassociated before destruction
    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);

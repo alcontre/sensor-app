@@ -27,6 +27,12 @@ git submodule update --init --recursive
 ./build.sh
 ```
 
+To produce an end-user build without the internal test data generator menu entry, configure with:
+```bash
+cmake -S . -B build-enduser -DSENSOR_TREE_ENABLE_TEST_DATA_GENERATOR_UI=OFF
+cmake --build build-enduser --target SensorTreeApp
+```
+
 ### On Ubuntu/Debian
 ```bash
 # Install dependencies

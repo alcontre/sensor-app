@@ -9,6 +9,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Export compile commands for tooling (compile_commands.json)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+option(SENSOR_TREE_ENABLE_TEST_DATA_GENERATOR_UI "Expose the internal test data generator menu entry" ON)
+
 # Find wxWidgets
 find_package(wxWidgets REQUIRED COMPONENTS core base net)
 include(${wxWidgets_USE_FILE})
@@ -37,6 +39,16 @@ add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE
     include
 )
+
+if(SENSOR_TREE_ENABLE_TEST_DATA_GENERATOR_UI)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        SENSOR_TREE_ENABLE_TEST_DATA_GENERATOR_UI=1
+    )
+else()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        SENSOR_TREE_ENABLE_TEST_DATA_GENERATOR_UI=0
+    )
+endif()
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME}
