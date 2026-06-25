@@ -30,10 +30,11 @@ namespace {
 static std::string AppTitle   = "Sensor Tree Viewer";
 static std::string AppVersion = "1.2";
 
-constexpr int STATUS_FIELD_NET_STATUS    = 0;
-constexpr int STATUS_FIELD_LOG_INFO      = 1;
-constexpr int STATUS_FIELD_MESSAGE_COUNT = 2;
-constexpr int STATUS_FIELD_COUNT         = 3;
+constexpr int STATUS_FIELD_NET_STATUS         = 0;
+constexpr int STATUS_FIELD_LOG_INFO           = 1;
+constexpr int STATUS_FIELD_MESSAGE_COUNT      = 2;
+constexpr int STATUS_FIELD_COUNT              = 3;
+constexpr size_t MAX_PENDING_SAMPLES_PER_TICK = 200;
 
 std::string GetNodePathKey(const Node *node)
 {
@@ -269,18 +270,44 @@ void MainFrame::BindEvents()
 
 void MainFrame::OnAgeTimer(wxTimerEvent &event)
 {
+   DrainPendingSamples();
    m_treeModel->RefreshElapsedTimes();
 }
 
-void MainFrame::ApplySensorDataSample(const SensorDataEvent &sampleEvent, bool recordSample)
+void MainFrame::ApplySample(const PendingSample &sample, bool recordSample)
 {
-   m_treeModel->AddDataSample(sampleEvent.GetPath(), sampleEvent.GetValue(),
-       sampleEvent.GetThresholds(), sampleEvent.GetAlarmState(), sampleEvent.GetTimestamp());
+   m_treeModel->AddDataSample(sample.path, sample.value,
+       sample.thresholds, sample.alarmState, sample.timestamp);
 
    if (recordSample && m_dataRecorder) {
-      m_dataRecorder->RecordSample(sampleEvent.GetPath(), sampleEvent.GetValue(),
-          sampleEvent.GetThresholds(), sampleEvent.GetAlarmState());
+      m_dataRecorder->RecordSample(sample.path, sample.value,
+          sample.thresholds, sample.alarmState);
    }
+}
+
+void MainFrame::DrainPendingSamples()
+{
+   if (m_pendingSamples.empty())
+      return;
+
+   m_treeModel->SetLiveDataMode(true);
+
+   size_t processed = 0;
+   while (processed < MAX_PENDING_SAMPLES_PER_TICK && !m_pendingSamples.empty()) {
+      ApplySample(m_pendingSamples.front(), true);
+      m_pendingSamples.pop_front();
+      ++processed;
+   }
+
+   if (m_showAlarmedOnlyCheck->IsChecked())
+      RefreshVisibleTreeState();
+}
+
+void MainFrame::RefreshVisibleTreeState()
+{
+   m_treeCtrl->Freeze();
+   RestoreExpansionState();
+   m_treeCtrl->Thaw();
 }
 
 void MainFrame::OnSensorData(wxCommandEvent &event)
@@ -289,14 +316,8 @@ void MainFrame::OnSensorData(wxCommandEvent &event)
    if (!sampleEvent)
       return;
 
-   m_treeModel->SetLiveDataMode(true);
-   ApplySensorDataSample(*sampleEvent, true);
-
-   if (m_showAlarmedOnlyCheck->IsChecked()) {
-      m_treeCtrl->Freeze();
-      RestoreExpansionState();
-      m_treeCtrl->Thaw();
-   }
+   m_pendingSamples.push_back({sampleEvent->GetPath(), sampleEvent->GetValue(), sampleEvent->GetThresholds(),
+       sampleEvent->GetAlarmState(), sampleEvent->GetTimestamp()});
 }
 
 // Recursively expand all descendants of a given item
@@ -325,18 +346,14 @@ void MainFrame::OnFilterTextChanged(wxCommandEvent &event)
 {
    wxString filterText = event.GetString();
 
-   m_treeCtrl->Freeze();
    m_treeModel->SetFilter(filterText);
-   RestoreExpansionState();
-   m_treeCtrl->Thaw();
+   RefreshVisibleTreeState();
 }
 
 void MainFrame::OnShowAlarmedOnly(wxCommandEvent &event)
 {
-   m_treeCtrl->Freeze();
    m_treeModel->SetShowAlarmedOnly(event.IsChecked());
-   RestoreExpansionState();
-   m_treeCtrl->Thaw();
+   RefreshVisibleTreeState();
 }
 
 void MainFrame::OnItemExpanded(wxDataViewEvent &event)
@@ -695,6 +712,7 @@ void MainFrame::OnRotateLog(wxCommandEvent &WXUNUSED(event))
 
 void MainFrame::OnClearTree(wxCommandEvent &WXUNUSED(event))
 {
+   m_pendingSamples.clear();
    m_treeCtrl->Freeze();
    m_treeCtrl->UnselectAll();
    m_treeModel->Clear();
@@ -885,6 +903,7 @@ void MainFrame::OnOpenSensorData(wxCommandEvent &WXUNUSED(event))
    if (m_plotManager)
       m_plotManager->CloseAllPlots();
 
+   m_pendingSamples.clear();
    m_treeCtrl->Freeze();
    m_treeCtrl->UnselectAll();
    m_treeModel->SetLiveDataMode(false);
@@ -904,8 +923,7 @@ void MainFrame::OnOpenSensorData(wxCommandEvent &WXUNUSED(event))
       const auto sampleTimestamp = recordedStart + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                                                        std::chrono::duration<double>(sample.elapsedSeconds));
 
-      SensorDataEvent replayEvent(sample.path, sample.value, sample.thresholds, sample.alarmState, sampleTimestamp);
-      ApplySensorDataSample(replayEvent, false);
+      ApplySample({sample.path, sample.value, sample.thresholds, sample.alarmState, sampleTimestamp}, false);
    }
    m_treeCtrl->Thaw();
 
@@ -1043,6 +1061,7 @@ void MainFrame::OnClose(wxCloseEvent &event)
    if (m_ageTimer.IsRunning()) {
       m_ageTimer.Stop();
    }
+   m_pendingSamples.clear();
 
    m_plotManager->CloseAllPlots();
    m_plotManager.reset();

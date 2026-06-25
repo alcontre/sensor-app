@@ -313,6 +313,50 @@ void TestLoadedRecordingsFreezeElapsedColumn()
    Expect(speedElapsedAfterRefresh.GetString() == "0.0", "Offline newest-sample elapsed should stay fixed across timer refreshes");
 }
 
+void TestModelKeepsFilteredVisibilityStableAcrossRepeatedUpdates()
+{
+   SensorTreeModel model;
+   const auto baseTime = std::chrono::steady_clock::time_point(std::chrono::seconds(200));
+
+   model.AddDataSample({"rack", "alpha", "target_sensor"}, DataValue(std::int64_t{10}), {}, SensorAlarmState::Ok, baseTime);
+   model.AddDataSample({"rack", "beta", "other_sensor"}, DataValue(std::int64_t{20}), {}, SensorAlarmState::Ok,
+       baseTime + std::chrono::seconds(1));
+
+   model.SetFilter("target_sensor");
+
+   Node *rackNode   = model.FindNodeByPath({"rack"});
+   Node *alphaNode  = model.FindNodeByPath({"rack", "alpha"});
+   Node *betaNode   = model.FindNodeByPath({"rack", "beta"});
+   Node *targetNode = model.FindNodeByPath({"rack", "alpha", "target_sensor"});
+   Node *otherNode  = model.FindNodeByPath({"rack", "beta", "other_sensor"});
+
+   Expect(rackNode != nullptr, "Repeated filtered-update test should create the rack node");
+   Expect(alphaNode != nullptr, "Repeated filtered-update test should create the matching branch");
+   Expect(betaNode != nullptr, "Repeated filtered-update test should create the non-matching branch");
+   Expect(targetNode != nullptr, "Repeated filtered-update test should create the matching leaf");
+   Expect(otherNode != nullptr, "Repeated filtered-update test should create the non-matching leaf");
+
+   for (int iteration = 0; iteration < 500; ++iteration) {
+      const auto timestamp = baseTime + std::chrono::milliseconds(10 * (iteration + 1));
+      model.AddDataSample({"rack", "alpha", "target_sensor"}, DataValue(std::int64_t{100 + iteration}), {}, SensorAlarmState::Ok, timestamp);
+      model.AddDataSample({"rack", "beta", "other_sensor"}, DataValue(std::int64_t{200 + iteration}), {}, SensorAlarmState::Warn,
+          timestamp + std::chrono::milliseconds(1));
+   }
+
+   Expect(model.IsNodeVisible(rackNode), "The ancestor path to a filtered sensor should stay visible across repeated updates");
+   Expect(model.IsNodeVisible(alphaNode), "The matching branch should stay visible across repeated updates");
+   Expect(model.IsNodeVisible(targetNode), "The matching leaf should stay visible across repeated updates");
+   Expect(!model.IsNodeVisible(betaNode), "A non-matching sibling branch should stay hidden across repeated updates");
+   Expect(!model.IsNodeVisible(otherNode), "A non-matching leaf should stay hidden across repeated updates");
+   Expect(targetNode->GetUpdateCount() == 501, "The matching node should retain all repeated updates");
+   Expect(otherNode->GetUpdateCount() == 501, "Hidden non-matching nodes should still retain incoming updates");
+
+   wxDataViewItemArray visibleChildren;
+   const unsigned int visibleChildCount = model.GetChildren(wxDataViewItem(static_cast<void *>(rackNode)), visibleChildren);
+   Expect(visibleChildCount == 1, "Only the matching branch should remain visible under the filtered rack node");
+   Expect(static_cast<Node *>(visibleChildren[0].GetID()) == alphaNode, "The visible child should be the matching branch");
+}
+
 } // namespace
 
 int main()
@@ -330,6 +374,7 @@ int main()
       TestModelVisibilityAndAlarmSummary();
       TestModelPreservesExplicitSampleTimestamps();
       TestLoadedRecordingsFreezeElapsedColumn();
+      TestModelKeepsFilteredVisibilityStableAcrossRepeatedUpdates();
    } catch (const std::exception &error) {
       std::cerr << error.what() << std::endl;
       return 1;

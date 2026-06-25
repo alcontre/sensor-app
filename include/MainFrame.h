@@ -10,6 +10,8 @@
 #include <wx/wx.h>
 
 #include <atomic>
+#include <chrono>
+#include <deque>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -57,6 +59,15 @@ class MainFrame : public wxFrame
    MainFrame();
 
  private:
+   struct PendingSample
+   {
+      std::vector<std::string> path;
+      DataValue value;
+      SensorThresholds thresholds;
+      SensorAlarmState alarmState                     = SensorAlarmState::Ok;
+      std::chrono::steady_clock::time_point timestamp = std::chrono::steady_clock::now();
+   };
+
    void OnExit(wxCommandEvent &event);
    void OnAbout(wxCommandEvent &event);
    void OnToggleDataGenerator(wxCommandEvent &event);
@@ -91,7 +102,9 @@ class MainFrame : public wxFrame
    void BindEvents();
    void OnClose(wxCloseEvent &event);
    void OnAgeTimer(wxTimerEvent &event);
-   void ApplySensorDataSample(const SensorDataEvent &sampleEvent, bool recordSample);
+   void ApplySample(const PendingSample &sample, bool recordSample);
+   void DrainPendingSamples();
+   void RefreshVisibleTreeState();
    void OnSensorData(wxCommandEvent &event);
    void OnConnectionStatus(wxThreadEvent &event);
    void OnNewMessage(wxThreadEvent &event);
@@ -126,4 +139,5 @@ class MainFrame : public wxFrame
    std::unordered_set<std::string> m_expandedNodes;
    std::unique_ptr<PlotManager> m_plotManager;
    std::unordered_map<int, wxString> m_plotMenuIdToName;
+   std::deque<PendingSample> m_pendingSamples;
 };

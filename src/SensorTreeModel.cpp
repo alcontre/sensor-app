@@ -62,12 +62,13 @@ SensorTreeModel::~SensorTreeModel()
 
 void SensorTreeModel::SetLiveDataMode(bool isLiveData)
 {
+   if (m_isLiveDataMode == isLiveData)
+      return;
+
    m_isLiveDataMode = isLiveData;
-   if (m_isLiveDataMode) {
-      m_elapsedReferenceTime.reset();
-   } else {
-      m_elapsedReferenceTime.reset();
-   }
+
+   // Clear any stored offline anchor so elapsed times are recalculated for the new mode.
+   m_elapsedReferenceTime.reset();
 }
 
 void SensorTreeModel::SetShowAlarmedOnly(bool showAlarmedOnly)
@@ -324,7 +325,7 @@ void SensorTreeModel::GetValue(wxVariant &variant, const wxDataViewItem &item, u
             const double seconds = (!m_isLiveDataMode && m_elapsedReferenceTime.has_value())
                                        ? node->GetSecondsSinceUpdate(*m_elapsedReferenceTime)
                                        : node->GetSecondsSinceUpdate();
-            variant        = wxString::Format("%.1f", seconds);
+            variant              = wxString::Format("%.1f", seconds);
          } else {
             variant = wxString("");
          }
